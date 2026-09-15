@@ -108,12 +108,12 @@ export function ChatApp() {
     if (saved) setMessages((m) => (m.some(x => x.id === (saved as any).id) ? m : [...m, saved as DBMsg]));
 
     // Image generation mode
-    if (imageMode) {
+    if (useImage) {
       setStreaming(true);
       const tempId = "img-" + Date.now();
       setMessages((m) => [...m, { id: tempId, conversation_id: id, role: "assistant", content: "Preparando imagen…", attachments: [], created_at: new Date().toISOString() }]);
       try {
-        const raw = await generateImage(text);
+        const raw = await generateImage(cleanImagePrompt(text));
         let url = raw;
         if (raw.startsWith("data:")) {
           const blob = await (await fetch(raw)).blob();
@@ -148,7 +148,7 @@ export function ChatApp() {
             {
               type: "text",
               text:
-                (searchMode ? "[Buscar info actualizada en internet] " : "") +
+                (useSearch ? "[Buscar info actualizada en internet] " : "") +
                 (m.content || "Analiza el contenido adjunto y descríbelo con detalle."),
             },
             ...imgs.map((a: any) => ({ type: "image_url", image_url: { url: a.url } })),
@@ -171,7 +171,7 @@ export function ChatApp() {
         acc += delta;
         setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: acc } : x));
       };
-      const runner = searchMode ? streamSearch(text, history, onDelta) : streamChat(history, onDelta);
+      const runner = useSearch ? streamSearch(text, history, onDelta) : streamChat(history, onDelta);
       await runner;
       const { data: a } = await supabase.from("messages")
         .insert({ conversation_id: id, role: "assistant", content: acc })
