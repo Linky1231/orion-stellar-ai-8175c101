@@ -282,10 +282,9 @@ export function ChatApp() {
                 ))}
               </div>
             )}
-            {(imageMode || searchMode) && (
+            {imageMode && (
               <div className="mb-2 flex gap-2 flex-wrap">
-                {imageMode && <Tag onClose={() => setImageMode(false)}><Sparkles className="w-3 h-3" /> Modo imagen</Tag>}
-                {searchMode && <Tag onClose={() => setSearchMode(false)}><Search className="w-3 h-3" /> Buscar info</Tag>}
+                <Tag onClose={() => setImageMode(false)}><Sparkles className="w-3 h-3" /> Modo imagen</Tag>
               </div>
             )}
             <div className="liquid-glass rounded-2xl p-2 flex items-end gap-1">
@@ -312,13 +311,6 @@ export function ChatApp() {
                   e.target.value = "";
                 }}
               />
-              <button onClick={() => { sfx.tap(); setImageMode((v) => !v); if (!imageMode) setSearchMode(false); }} className={`tap p-2 rounded-xl ${imageMode ? "btn-cosmic" : "btn-glass"}`} title="Generar imagen">
-
-                <ImagePlus className="w-4 h-4" />
-              </button>
-              <button onClick={() => { sfx.tap(); setSearchMode((v) => !v); if (!searchMode) setImageMode(false); }} className={`tap p-2 rounded-xl ${searchMode ? "btn-cosmic" : "btn-glass"}`} title="Buscar info">
-                <Search className="w-4 h-4" />
-              </button>
               <button onClick={send} disabled={streaming} className="tap btn-cosmic p-2 rounded-xl disabled:opacity-50" title="Enviar">
                 <Send className="w-4 h-4" />
               </button>
