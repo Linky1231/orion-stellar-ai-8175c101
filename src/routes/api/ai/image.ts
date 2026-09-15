@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const POLLINATIONS = "https://image.pollinations.ai/prompt/";
 const PREXZY_IMAGE = "https://prexzyapis.com/ai/aiwriter-image";
+const NVIDIA_IMAGE = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev";
 
 function pickUrl(json: any): string {
   const r = json?.result ?? json;
