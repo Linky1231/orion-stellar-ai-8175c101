@@ -12,7 +12,7 @@ import { DebugPanel } from "./DebugPanel";
 
 import { AdminPanel } from "./AdminPanel";
 
-import { Menu, Send, Paperclip, ImagePlus, Search, User, Copy, Volume2, Square, X, AlertTriangle, Sparkles } from "lucide-react";
+import { Menu, Send, Paperclip, User, Copy, Volume2, Square, X, Sparkles } from "lucide-react";
 
 const SpeechCtx = createContext<{ speakingId: string | null; toggle: (id: string, text: string) => void }>({ speakingId: null, toggle: () => {} });
 
@@ -22,6 +22,31 @@ type DBMsg = {
 };
 
 const ADMIN_TOKEN = "Admin7880";
+
+// Orión activa sola la generación de imágenes o la búsqueda web según lo que pida el usuario.
+const IMAGE_RE =
+  /\b(gener(a|ar|ame|as)|cre(a|ar|ame)|haz(me)?|dibuj(a|ar|ame)|diseñ(a|ar|ame)|ilustr(a|ar|ame)|imagin(a|ar)|pint(a|ar))\b[^.?!]{0,40}\b(imagen|imágenes|imagenes|foto|fotografía|fotografia|dibujo|ilustración|ilustracion|logo|póster|poster|wallpaper|fondo de pantalla|render|arte)\b/i;
+const SEARCH_RE =
+  /\b(busca|búscame|buscame|buscar|investiga|averigua|consulta)\b[^.?!]{0,40}\b(internet|web|google|en línea|en linea|noticias?|actualizad[ao]s?)\b|\b(qué|que)\s+(noticias|ha pasado|está pasando|esta pasando)\b|\búltimas noticias\b/i;
+
+function detectImageRequest(text: string) {
+  return IMAGE_RE.test(text);
+}
+
+function detectSearchRequest(text: string) {
+  return SEARCH_RE.test(text);
+}
+
+function cleanImagePrompt(text: string) {
+  return (
+    text
+      .replace(
+        /^\s*(por favor\s+)?(gener(a|ar|ame|as)|cre(a|ar|ame)|haz(me)?|dibuj(a|ar|ame)|diseñ(a|ar|ame)|ilustr(a|ar|ame))\s+(una|un|el|la|unas|unos)?\s*(imagen|imágenes|imagenes|foto|fotografía|fotografia|dibujo|ilustración|ilustracion)\s*(de|sobre|con|que muestre)?\s*/i,
+        "",
+      )
+      .trim() || text
+  );
+}
 
 export function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
