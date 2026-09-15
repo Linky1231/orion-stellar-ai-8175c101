@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const POLLINATIONS = "https://image.pollinations.ai/prompt/";
 const PREXZY_IMAGE = "https://prexzyapis.com/ai/aiwriter-image";
+const NVIDIA_IMAGE = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev";
 
 function pickUrl(json: any): string {
   const r = json?.result ?? json;
@@ -30,7 +31,34 @@ export const Route = createFileRoute("/api/ai/image")({
 
         const [w, h] = (size || "1024x1024").split("x").map((n) => parseInt(n, 10) || 1024);
 
-        // 1) Pollinations: gratis e ilimitado
+        // 1) NVIDIA (Flux.1-dev) con la clave del usuario
+        const apiKey = process.env["NVIDIA_API_KEY"];
+        if (apiKey) {
+          try {
+            const res = await fetch(NVIDIA_IMAGE, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({
+                prompt,
+                width: w,
+                height: h,
+                steps: 30,
+                cfg_scale: 3.5,
+                seed: Math.floor(Math.random() * 1e6),
+              }),
+            });
+            if (res.ok) {
+              const json: any = await res.json();
+              const art = json?.artifacts?.[0];
+              const b64 = art?.base64 || json?.image || json?.b64_json;
+              if (b64) return Response.json({ url: `data:image/jpeg;base64,${b64}` });
+            }
+          } catch {
+            /* siguiente proveedor */
+          }
+        }
+
+        // 2) Pollinations: gratis e ilimitado
         try {
           const url = new URL(POLLINATIONS + encodeURIComponent(prompt));
           url.searchParams.set("width", String(w));

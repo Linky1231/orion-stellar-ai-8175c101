@@ -12,7 +12,7 @@ import { DebugPanel } from "./DebugPanel";
 
 import { AdminPanel } from "./AdminPanel";
 
-import { Menu, Send, Paperclip, ImagePlus, Search, User, Copy, Volume2, Square, X, AlertTriangle, Sparkles } from "lucide-react";
+import { Menu, Send, Paperclip, User, Copy, Volume2, Square, X, Sparkles } from "lucide-react";
 
 const SpeechCtx = createContext<{ speakingId: string | null; toggle: (id: string, text: string) => void }>({ speakingId: null, toggle: () => {} });
 
@@ -22,6 +22,31 @@ type DBMsg = {
 };
 
 const ADMIN_TOKEN = "Admin7880";
+
+// Orión activa sola la generación de imágenes o la búsqueda web según lo que pida el usuario.
+const IMAGE_RE =
+  /\b(gener(a|ar|ame|as)|cre(a|ar|ame)|haz(me)?|dibuj(a|ar|ame)|diseñ(a|ar|ame)|ilustr(a|ar|ame)|imagin(a|ar)|pint(a|ar))\b[^.?!]{0,40}\b(imagen|imágenes|imagenes|foto|fotografía|fotografia|dibujo|ilustración|ilustracion|logo|póster|poster|wallpaper|fondo de pantalla|render|arte)\b/i;
+const SEARCH_RE =
+  /\b(busca|búscame|buscame|buscar|investiga|averigua|consulta)\b[^.?!]{0,40}\b(internet|web|google|en línea|en linea|noticias?|actualizad[ao]s?)\b|\b(qué|que)\s+(noticias|ha pasado|está pasando|esta pasando)\b|\búltimas noticias\b/i;
+
+function detectImageRequest(text: string) {
+  return IMAGE_RE.test(text);
+}
+
+function detectSearchRequest(text: string) {
+  return SEARCH_RE.test(text);
+}
+
+function cleanImagePrompt(text: string) {
+  return (
+    text
+      .replace(
+        /^\s*(por favor\s+)?(gener(a|ar|ame|as)|cre(a|ar|ame)|haz(me)?|dibuj(a|ar|ame)|diseñ(a|ar|ame)|ilustr(a|ar|ame))\s+(una|un|el|la|unas|unos)?\s*(imagen|imágenes|imagenes|foto|fotografía|fotografia|dibujo|ilustración|ilustracion)\s*(de|sobre|con|que muestre)?\s*/i,
+        "",
+      )
+      .trim() || text
+  );
+}
 
 export function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -80,6 +105,14 @@ export function ChatApp() {
     const text = input.trim();
     if (!text && pending.length === 0) return;
 
+    // Orión decide sola: si el usuario pide una imagen o una búsqueda, activa esa función.
+    const wantsImage = !pending.length && detectImageRequest(text);
+    const wantsSearch = !wantsImage && detectSearchRequest(text);
+    if (wantsImage) setImageMode(true);
+    if (wantsSearch) setSearchMode(true);
+    const useImage = imageMode || wantsImage;
+    const useSearch = !useImage && (searchMode || wantsSearch);
+
     // Admin trigger
     if (text === ADMIN_TOKEN) {
       sfx.open();
@@ -100,12 +133,12 @@ export function ChatApp() {
     if (saved) setMessages((m) => (m.some(x => x.id === (saved as any).id) ? m : [...m, saved as DBMsg]));
 
     // Image generation mode
-    if (imageMode) {
+    if (useImage) {
       setStreaming(true);
       const tempId = "img-" + Date.now();
       setMessages((m) => [...m, { id: tempId, conversation_id: id, role: "assistant", content: "Preparando imagen…", attachments: [], created_at: new Date().toISOString() }]);
       try {
-        const raw = await generateImage(text);
+        const raw = await generateImage(cleanImagePrompt(text));
         let url = raw;
         if (raw.startsWith("data:")) {
           const blob = await (await fetch(raw)).blob();
@@ -140,7 +173,7 @@ export function ChatApp() {
             {
               type: "text",
               text:
-                (searchMode ? "[Buscar info actualizada en internet] " : "") +
+                (useSearch ? "[Buscar info actualizada en internet] " : "") +
                 (m.content || "Analiza el contenido adjunto y descríbelo con detalle."),
             },
             ...imgs.map((a: any) => ({ type: "image_url", image_url: { url: a.url } })),
@@ -163,7 +196,7 @@ export function ChatApp() {
         acc += delta;
         setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: acc } : x));
       };
-      const runner = searchMode ? streamSearch(text, history, onDelta) : streamChat(history, onDelta);
+      const runner = useSearch ? streamSearch(text, history, onDelta) : streamChat(history, onDelta);
       await runner;
       const { data: a } = await supabase.from("messages")
         .insert({ conversation_id: id, role: "assistant", content: acc })
@@ -274,10 +307,9 @@ export function ChatApp() {
                 ))}
               </div>
             )}
-            {(imageMode || searchMode) && (
+            {imageMode && (
               <div className="mb-2 flex gap-2 flex-wrap">
-                {imageMode && <Tag onClose={() => setImageMode(false)}><Sparkles className="w-3 h-3" /> Modo imagen</Tag>}
-                {searchMode && <Tag onClose={() => setSearchMode(false)}><Search className="w-3 h-3" /> Buscar info</Tag>}
+                <Tag onClose={() => setImageMode(false)}><Sparkles className="w-3 h-3" /> Modo imagen</Tag>
               </div>
             )}
             <div className="liquid-glass rounded-2xl p-2 flex items-end gap-1">
@@ -304,13 +336,6 @@ export function ChatApp() {
                   e.target.value = "";
                 }}
               />
-              <button onClick={() => { sfx.tap(); setImageMode((v) => !v); if (!imageMode) setSearchMode(false); }} className={`tap p-2 rounded-xl ${imageMode ? "btn-cosmic" : "btn-glass"}`} title="Generar imagen">
-
-                <ImagePlus className="w-4 h-4" />
-              </button>
-              <button onClick={() => { sfx.tap(); setSearchMode((v) => !v); if (!searchMode) setImageMode(false); }} className={`tap p-2 rounded-xl ${searchMode ? "btn-cosmic" : "btn-glass"}`} title="Buscar info">
-                <Search className="w-4 h-4" />
-              </button>
               <button onClick={send} disabled={streaming} className="tap btn-cosmic p-2 rounded-xl disabled:opacity-50" title="Enviar">
                 <Send className="w-4 h-4" />
               </button>
