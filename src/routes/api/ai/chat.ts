@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://prexzyapis.com/ai/gemini";
+const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
+const MODEL = "meta/muse-glimmer-30b";
 
 type Msg = { role: string; content: any };
 
@@ -25,76 +26,93 @@ export const Route = createFileRoute("/api/ai/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json().catch(() => ({}))) as {
-          messages?: Msg[];
-          mode?: string;
-          sessionId?: string;
-        };
-        const messages = body.messages || [];
+        const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
+        const incoming = body.messages || [];
 
-        const systems = messages.filter((m) => m.role === "system").map((m) => flatten(m.content));
-        const convo = messages.filter((m) => m.role !== "system");
-        const last = convo[convo.length - 1];
-        const history = convo
-          .slice(0, -1)
-          .map((m) => `${m.role === "assistant" ? "Orión" : "Usuario"}: ${flatten(m.content)}`)
-          .join("\n");
+        const apiKey = process.env["NVIDIA_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de NVIDIA." }, { status: 500 });
 
-        const knowledge = systems.join("\n\n");
-        const question = last ? flatten(last.content) : "";
-        const hist = history ? `HISTORIAL:\n${history}` : "";
-        const sessionId = body.sessionId || "orion";
-
-        // El servicio recibe el prompt por URL: se prueban tamaños decrecientes
-        // para incluir la mayor cantidad posible de memoria/conocimiento.
-        const attempts: string[] = [];
-        for (const limit of [12000, 8000, 5000, 2500]) {
-          const k = knowledge.length > limit ? knowledge.slice(0, limit) : knowledge;
-          const h = hist.slice(0, Math.max(0, Math.floor(limit / 3)));
-          attempts.push([k, h, question].filter(Boolean).join("\n\n"));
+        // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
+        const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
+        if (body.mode === "search") {
+          systems.push(
+            "Responde con la información más actual y verificable que conozcas e indica cuando un dato pueda haber cambiado.",
+          );
         }
-        attempts.push(question);
+        const convo = incoming
+          .filter((m) => m.role !== "system")
+          .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: flatten(m.content) }))
+          .filter((m) => m.content);
 
-        let text = "";
-        let lastStatus = 502;
-        for (const prompt of attempts) {
-          const url = new URL(ENDPOINT);
-          url.searchParams.set("prompt", prompt);
-          url.searchParams.set("session_id", sessionId);
-          try {
-            const res = await fetch(url.toString(), {
-              headers: {
-                Accept: "application/json",
-                "User-Agent":
-                  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
-              },
-            });
-            lastStatus = res.status;
-            const raw = await res.text();
-            if (!res.ok) continue;
-            try {
-              const json: any = JSON.parse(raw);
-              const r = json?.response ?? json?.result;
-              if (Array.isArray(r)) text = r.join("");
-              else if (typeof r === "string") text = r;
-              else text = r?.text || r?.response || json?.message || "";
-            } catch {
-              text = raw;
-            }
-            if (text) break;
-          } catch {
-            /* siguiente intento */
-          }
+        const messages = [
+          ...(systems.length ? [{ role: "system", content: systems.join("\n\n") }] : []),
+          ...convo,
+        ];
+
+        let upstream: Response;
+        try {
+          upstream = await fetch(ENDPOINT, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              Accept: "text/event-stream",
+            },
+            body: JSON.stringify({
+              model: MODEL,
+              messages,
+              temperature: 0.7,
+              top_p: 0.95,
+              max_tokens: 8192,
+              stream: true,
+            }),
+          });
+        } catch (e) {
+          return Response.json({ error: "No se pudo contactar al proveedor." }, { status: 502 });
         }
 
-        if (!text) return Response.json({ error: `El proveedor no respondió (${lastStatus}).` }, { status: 502 });
+        if (!upstream.ok || !upstream.body) {
+          const detail = await upstream.text().catch(() => "");
+          return Response.json(
+            { error: `El proveedor no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
+            { status: 502 },
+          );
+        }
 
-        // Se entrega como SSE para mantener el streaming del cliente.
+        // Se reenvía como SSE, descartando el razonamiento interno del modelo.
+        const reader = upstream.body.getReader();
+        const decoder = new TextDecoder();
+        const enc = new TextEncoder();
+
         const stream = new ReadableStream({
-          start(controller) {
-            const enc = new TextEncoder();
-            const chunk = { choices: [{ delta: { content: String(text) } }] };
-            controller.enqueue(enc.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+          async start(controller) {
+            let buffer = "";
+            const send = (text: string) =>
+              controller.enqueue(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+                for (const line of lines) {
+                  const t = line.trim();
+                  if (!t.startsWith("data:")) continue;
+                  const payload = t.slice(5).trim();
+                  if (!payload || payload === "[DONE]") continue;
+                  try {
+                    const json: any = JSON.parse(payload);
+                    const delta = json?.choices?.[0]?.delta?.content;
+                    if (delta) send(String(delta));
+                  } catch {
+                    /* fragmento parcial */
+                  }
+                }
+              }
+            } catch {
+              /* fin abrupto */
+            }
             controller.enqueue(enc.encode("data: [DONE]\n\n"));
             controller.close();
           },
