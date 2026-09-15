@@ -38,12 +38,71 @@ export const VISION_MODELS = [
   "openrouter:meta-llama/llama-4-scout",
 ];
 
+function isImage(src: string) {
+  if (src.startsWith("data:")) return src.startsWith("data:image/");
+  return !/\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(src);
+}
+
+// Visión con la misma API de NVIDIA que usa el chat.
+async function nvidiaVision(
+  prompt: string,
+  images: string[],
+  onDelta: (s: string) => void,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const res = await fetch("/api/ai/vision", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, images }),
+    signal,
+  });
+  if (!res.ok || !res.body) return false;
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let got = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (signal?.aborted) return true;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      const payload = t.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const delta = JSON.parse(payload)?.choices?.[0]?.delta?.content;
+        if (delta) {
+          got = true;
+          onDelta(String(delta));
+        }
+      } catch {
+        /* fragmento parcial */
+      }
+    }
+  }
+  return got;
+}
+
 export async function visionStream(
   prompt: string,
   images: string[],
   onDelta: (s: string) => void,
   signal?: AbortSignal,
 ) {
+  if (images.length && images.every(isImage)) {
+    try {
+      if (await nvidiaVision(prompt, images, onDelta, signal)) return;
+    } catch (e) {
+      if (signal?.aborted) return;
+    }
+  }
+
   const puter = await loadVisionEngine();
   let lastError: any = null;
 
