@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-const VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
+const VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
 const MAX_B64 = 180_000; // límite de imagen en línea del proveedor
 
 function toBase64(buf: Uint8Array) {
