@@ -62,7 +62,10 @@ export const Route = createFileRoute("/api/ai/vision")({
             },
             body: JSON.stringify({
               model: VISION_MODEL,
-              messages: [{ role: "user", content }],
+              messages: [
+                { role: "system", content: "Eres Orión Estellar. Responde SIEMPRE en español, con detalle y claridad." },
+                { role: "user", content },
+              ],
               temperature: 0.6,
               max_tokens: 4096,
               stream: true,
