@@ -1,4 +1,4 @@
-// Motor de visión gratuito e ilimitado (Puter.js, sin clave ni límites).
+// Análisis visual: NVIDIA (principal) con motor gratuito Puter.js como respaldo.
 let loading: Promise<any> | null = null;
 
 export function loadVisionEngine(): Promise<any> {
@@ -30,7 +30,6 @@ export function loadVisionEngine(): Promise<any> {
   return loading;
 }
 
-// Modelos de visión gratuitos, en orden de preferencia.
 export const VISION_MODELS = [
   "google/gemini-2.5-flash",
   "gpt-5-nano",
@@ -43,17 +42,58 @@ function isImage(src: string) {
   return !/\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(src);
 }
 
-// Visión con la misma API de NVIDIA que usa el chat.
+function errText(e: any) {
+  if (!e) return "";
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  const m = e?.message || e?.error?.message || e?.error || e?.detail;
+  if (typeof m === "string") return m;
+  try {
+    return JSON.stringify(e).slice(0, 160);
+  } catch {
+    return String(e);
+  }
+}
+
+// Reduce la imagen en el navegador para que el proveedor pueda leerla siempre.
+async function shrink(src: string, max = 900, quality = 0.72): Promise<string> {
+  if (typeof document === "undefined") return src;
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.crossOrigin = "anonymous";
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("no-load"));
+      i.src = src;
+    });
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) return src;
+    ctx.drawImage(img, 0, 0, w, h);
+    let out = c.toDataURL("image/jpeg", quality);
+    if (out.length > 230_000) out = c.toDataURL("image/jpeg", 0.5);
+    return out;
+  } catch {
+    return src;
+  }
+}
+
 async function nvidiaVision(
   prompt: string,
   images: string[],
   onDelta: (s: string) => void,
   signal?: AbortSignal,
 ): Promise<boolean> {
+  const small = await Promise.all(images.slice(0, 1).map((s) => shrink(s)));
   const res = await fetch("/api/ai/vision", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, images }),
+    body: JSON.stringify({ prompt, images: small }),
     signal,
   });
   if (!res.ok || !res.body) return false;
@@ -95,49 +135,58 @@ export async function visionStream(
   onDelta: (s: string) => void,
   signal?: AbortSignal,
 ) {
+  let lastError: any = null;
+
   if (images.length && images.every(isImage)) {
     try {
       if (await nvidiaVision(prompt, images, onDelta, signal)) return;
     } catch (e) {
       if (signal?.aborted) return;
+      lastError = e;
     }
   }
 
-  const puter = await loadVisionEngine();
-  let lastError: any = null;
+  let puter: any = null;
+  try {
+    puter = await loadVisionEngine();
+  } catch (e) {
+    lastError = e;
+  }
 
-  for (const model of VISION_MODELS) {
-    if (signal?.aborted) return;
-    try {
-      const arg = images.length === 1 ? images[0] : images;
-      const resp = await puter.ai.chat(prompt, arg, false, { model, stream: true });
-      let got = false;
-      for await (const part of resp) {
-        if (signal?.aborted) return;
-        const t = part?.text ?? "";
-        if (t) {
-          got = true;
-          onDelta(String(t));
+  if (puter) {
+    for (const model of VISION_MODELS) {
+      if (signal?.aborted) return;
+      try {
+        const arg = images.length === 1 ? images[0] : images;
+        const resp = await puter.ai.chat(prompt, arg, false, { model, stream: true });
+        let got = false;
+        for await (const part of resp) {
+          if (signal?.aborted) return;
+          const t = part?.text ?? "";
+          if (t) {
+            got = true;
+            onDelta(String(t));
+          }
         }
+        if (got) return;
+      } catch (e) {
+        lastError = e;
       }
-      if (got) return;
+    }
+
+    try {
+      const resp = await puter.ai.chat(prompt, images[0], false, { model: VISION_MODELS[0] });
+      const txt = resp?.message?.content ?? resp?.text ?? String(resp ?? "");
+      const out = Array.isArray(txt) ? txt.map((p: any) => p?.text || "").join("") : String(txt);
+      if (out.trim()) {
+        onDelta(out);
+        return;
+      }
     } catch (e) {
       lastError = e;
     }
   }
 
-  // Último intento sin streaming
-  try {
-    const resp = await puter.ai.chat(prompt, images[0], false, { model: VISION_MODELS[0] });
-    const txt = resp?.message?.content ?? resp?.text ?? String(resp ?? "");
-    const out = Array.isArray(txt) ? txt.map((p: any) => p?.text || "").join("") : String(txt);
-    if (out.trim()) {
-      onDelta(out);
-      return;
-    }
-  } catch (e) {
-    lastError = e;
-  }
-
-  throw new Error("No se pudo analizar el contenido visual" + (lastError ? ` (${String(lastError).slice(0, 120)})` : ""));
+  const detail = errText(lastError);
+  throw new Error("No se pudo analizar el contenido visual" + (detail ? ` (${detail})` : ""));
 }

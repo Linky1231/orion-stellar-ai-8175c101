@@ -34,7 +34,7 @@ export const Route = createFileRoute("/api/ai/vision")({
       POST: async ({ request }) => {
         const body = (await request.json().catch(() => ({}))) as { prompt?: string; images?: string[] };
         const prompt = body.prompt || "Analiza la imagen y descríbela con detalle.";
-        const srcs = (body.images || []).slice(0, 4);
+        const srcs = (body.images || []).slice(0, 1);
 
         const apiKey = process.env["NVIDIA_API_KEY"];
         if (!apiKey) return Response.json({ error: "Falta la clave de NVIDIA." }, { status: 500 });

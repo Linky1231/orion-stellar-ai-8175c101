@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiAiVisionRouteImport } from './routes/api/ai/vision'
+import { Route as ApiAiSearchRouteImport } from './routes/api/ai/search'
 import { Route as ApiAiImageRouteImport } from './routes/api/ai/image'
 import { Route as ApiAiChatRouteImport } from './routes/api/ai/chat'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiAiVisionRoute = ApiAiVisionRouteImport.update({
   id: '/api/ai/vision',
   path: '/api/ai/vision',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiSearchRoute = ApiAiSearchRouteImport.update({
+  id: '/api/ai/search',
+  path: '/api/ai/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiImageRoute = ApiAiImageRouteImport.update({
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
+  '/api/ai/search': typeof ApiAiSearchRoute
   '/api/ai/vision': typeof ApiAiVisionRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
+  '/api/ai/search': typeof ApiAiSearchRoute
   '/api/ai/vision': typeof ApiAiVisionRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,38 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
+  '/api/ai/search': typeof ApiAiSearchRoute
   '/api/ai/vision': typeof ApiAiVisionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/ai/chat' | '/api/ai/image' | '/api/ai/vision'
+  fullPaths:
+    | '/'
+    | '/api/ai/chat'
+    | '/api/ai/image'
+    | '/api/ai/search'
+    | '/api/ai/vision'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/ai/chat' | '/api/ai/image' | '/api/ai/vision'
-  id: '__root__' | '/' | '/api/ai/chat' | '/api/ai/image' | '/api/ai/vision'
+  to:
+    | '/'
+    | '/api/ai/chat'
+    | '/api/ai/image'
+    | '/api/ai/search'
+    | '/api/ai/vision'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/ai/chat'
+    | '/api/ai/image'
+    | '/api/ai/search'
+    | '/api/ai/vision'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiAiChatRoute: typeof ApiAiChatRoute
   ApiAiImageRoute: typeof ApiAiImageRoute
+  ApiAiSearchRoute: typeof ApiAiSearchRoute
   ApiAiVisionRoute: typeof ApiAiVisionRoute
 }
 
@@ -83,6 +109,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ai/vision'
       fullPath: '/api/ai/vision'
       preLoaderRoute: typeof ApiAiVisionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai/search': {
+      id: '/api/ai/search'
+      path: '/api/ai/search'
+      fullPath: '/api/ai/search'
+      preLoaderRoute: typeof ApiAiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/image': {
@@ -106,6 +139,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiAiChatRoute: ApiAiChatRoute,
   ApiAiImageRoute: ApiAiImageRoute,
+  ApiAiSearchRoute: ApiAiSearchRoute,
   ApiAiVisionRoute: ApiAiVisionRoute,
 }
 export const routeTree = rootRouteImport
