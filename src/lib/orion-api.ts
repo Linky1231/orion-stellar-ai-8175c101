@@ -85,19 +85,71 @@ export async function streamChat(messages: ChatMsg[], onDelta: (s: string) => vo
   return aiStream([...ctx, ...messages], onDelta, signal);
 }
 
+export type SearchHit = { title: string; url: string; snippet: string };
+
+export async function webSearch(query: string): Promise<SearchHit[]> {
+  try {
+    const res = await fetch("/api/ai/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    const json: any = await res.json().catch(() => null);
+    return Array.isArray(json?.results) ? json.results : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function streamSearch(query: string, messages: ChatMsg[], onDelta: (s: string) => void, signal?: AbortSignal) {
-  const ctx = await buildKnowledgeMessages();
+  const [ctx, hits] = await Promise.all([buildKnowledgeMessages(), webSearch(query)]);
+  const resultados = hits.length
+    ? hits
+        .map((h, i) => `[${i + 1}] ${h.title}\n${h.snippet}\nFuente: ${h.url}`)
+        .join("\n\n")
+    : "(la búsqueda no devolvió resultados)";
+
   const msgs: ChatMsg[] = [
     ...ctx,
     {
       role: "system",
       content:
-        "Tienes acceso a búsqueda web en vivo. Consulta internet y responde con información actual y verificable sobre la consulta del usuario. Cita las fuentes con su enlace al final. Si un dato no aparece en los resultados, dilo con claridad.",
+        `RESULTADOS DE BÚSQUEDA WEB EN VIVO (fecha actual: ${new Date().toLocaleDateString("es-ES")}). ` +
+        "Responde usando ESTOS resultados como fuente principal, resume con claridad y cita los enlaces al final. " +
+        "Si los resultados no contienen el dato, dilo con honestidad.\n\n" +
+        resultados,
     },
     ...messages,
-    { role: "user", content: `Busca en internet información actualizada sobre: ${query}` },
+    { role: "user", content: `Con base en los resultados de búsqueda, responde: ${query}` },
   ];
   return aiStream(msgs, onDelta, signal, { mode: "search" });
+}
+
+// Construye un prompt de imagen detallado usando la conversación como contexto.
+export async function buildImagePrompt(request: string, history: ChatMsg[]): Promise<string> {
+  const convo = history
+    .slice(-8)
+    .map((m) => `${m.role === "user" ? "Usuario" : "Orión"}: ${typeof m.content === "string" ? m.content : ""}`)
+    .filter((l) => l.trim().length > 8)
+    .join("\n")
+    .slice(0, 4000);
+  try {
+    const out = await aiText(
+      [
+        {
+          role: "system",
+          content:
+            "Eres un generador de prompts para un modelo de imágenes. Con la conversación previa y la petición, escribe UN SOLO prompt visual en inglés, detallado (sujeto, estilo, composición, luz, colores). Sin explicaciones, sin comillas, sin listas. Máximo 60 palabras.",
+        },
+        { role: "user", content: `Conversación previa:\n${convo || "(sin contexto)"}\n\nPetición: ${request || "(sin descripción, usa el contexto)"}` },
+      ],
+      { max_tokens: 200 },
+    );
+    const clean = out.replace(/^["'\s]+|["'\s]+$/g, "").split("\n").filter(Boolean).pop() || "";
+    return clean.length > 5 ? clean : request;
+  } catch {
+    return request;
+  }
 }
 
 
