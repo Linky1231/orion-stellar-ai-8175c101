@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-const VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
+const VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
 const MAX_B64 = 180_000; // límite de imagen en línea del proveedor
 
 function toBase64(buf: Uint8Array) {
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/api/ai/vision")({
       POST: async ({ request }) => {
         const body = (await request.json().catch(() => ({}))) as { prompt?: string; images?: string[] };
         const prompt = body.prompt || "Analiza la imagen y descríbela con detalle.";
-        const srcs = (body.images || []).slice(0, 4);
+        const srcs = (body.images || []).slice(0, 1);
 
         const apiKey = process.env["NVIDIA_API_KEY"];
         if (!apiKey) return Response.json({ error: "Falta la clave de NVIDIA." }, { status: 500 });
@@ -62,7 +62,10 @@ export const Route = createFileRoute("/api/ai/vision")({
             },
             body: JSON.stringify({
               model: VISION_MODEL,
-              messages: [{ role: "user", content }],
+              messages: [
+                { role: "system", content: "Eres Orión Estellar. Responde SIEMPRE en español, con detalle y claridad." },
+                { role: "user", content },
+              ],
               temperature: 0.6,
               max_tokens: 4096,
               stream: true,

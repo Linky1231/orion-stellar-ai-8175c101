@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
-import { streamChat, streamSearch, generateImage, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
+import { streamChat, streamSearch, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
 
 import { OrionLogo } from "./OrionLogo";
 import { Sidebar } from "./Sidebar";
@@ -138,7 +138,10 @@ export function ChatApp() {
       const tempId = "img-" + Date.now();
       setMessages((m) => [...m, { id: tempId, conversation_id: id, role: "assistant", content: "Preparando imagen…", attachments: [], created_at: new Date().toISOString() }]);
       try {
-        const raw = await generateImage(cleanImagePrompt(text));
+        // Orión arma el prompt con el contexto de la conversación si el usuario no lo detalla.
+        const hist: ChatMsg[] = messages.map((m) => ({ role: m.role as any, content: m.content }));
+        const prompt = await buildImagePrompt(cleanImagePrompt(text), hist);
+        const raw = await generateImage(prompt);
         let url = raw;
         if (raw.startsWith("data:")) {
           const blob = await (await fetch(raw)).blob();
