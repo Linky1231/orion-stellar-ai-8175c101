@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-const MODEL = "meta/muse-glimmer-30b";
+const MODEL = "meta/llama-3.3-70b-instruct";
 
 type Msg = { role: string; content: any };
 
