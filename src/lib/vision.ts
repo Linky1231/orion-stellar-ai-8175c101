@@ -109,7 +109,10 @@ async function nvidiaVision(
     body: JSON.stringify({ prompt, images: small }),
     signal,
   });
-  if (!res.ok || !res.body) return false;
+  if (!res.ok || !res.body) {
+    const info: any = await res.json().catch(() => null);
+    throw new Error(info?.error || `El servicio de visión respondió ${res.status}`);
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
