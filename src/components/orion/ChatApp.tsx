@@ -199,7 +199,12 @@ export function ChatApp() {
         acc += delta;
         setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: acc } : x));
       };
-      const runner = useSearch ? streamSearch(text, history, onDelta) : streamChat(history, onDelta);
+      const visual = atts.filter((a) => a.type?.startsWith("image") || a.type?.startsWith("video"));
+      const runner = visual.length
+        ? streamVisionChat(text, visual, history.slice(0, -1), onDelta)
+        : useSearch
+          ? streamSearch(text, history, onDelta)
+          : streamChat(history, onDelta);
       await runner;
       const { data: a } = await supabase.from("messages")
         .insert({ conversation_id: id, role: "assistant", content: acc })
