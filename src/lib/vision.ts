@@ -1,41 +1,5 @@
-// Análisis visual: NVIDIA (principal) con motor gratuito Puter.js como respaldo.
-let loading: Promise<any> | null = null;
+// Análisis visual: exclusivamente con la API de NVIDIA del usuario.
 
-export function loadVisionEngine(): Promise<any> {
-  if (typeof window === "undefined") return Promise.reject(new Error("Solo disponible en el navegador"));
-  const w = window as any;
-  if (w.puter) return Promise.resolve(w.puter);
-  if (!loading) {
-    loading = new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = "https://js.puter.com/v2/";
-      s.async = true;
-      s.onload = () => {
-        const tries = 40;
-        let n = 0;
-        const t = window.setInterval(() => {
-          if ((window as any).puter?.ai) {
-            window.clearInterval(t);
-            resolve((window as any).puter);
-          } else if (++n > tries) {
-            window.clearInterval(t);
-            reject(new Error("El motor de visión no se inicializó"));
-          }
-        }, 250);
-      };
-      s.onerror = () => reject(new Error("No se pudo cargar el motor de visión"));
-      document.head.appendChild(s);
-    });
-  }
-  return loading;
-}
-
-export const VISION_MODELS = [
-  "google/gemini-2.5-flash",
-  "gpt-5-nano",
-  "claude-sonnet-4",
-  "openrouter:meta-llama/llama-4-scout",
-];
 
 // Extrae fotogramas de un video para poder analizarlo como imágenes.
 export async function videoFrames(src: string, count = 2): Promise<string[]> {
@@ -145,7 +109,10 @@ async function nvidiaVision(
     body: JSON.stringify({ prompt, images: small }),
     signal,
   });
-  if (!res.ok || !res.body) return false;
+  if (!res.ok || !res.body) {
+    const info: any = await res.json().catch(() => null);
+    throw new Error(info?.error || `El servicio de visión respondió ${res.status}`);
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -184,58 +151,16 @@ export async function visionStream(
   onDelta: (s: string) => void,
   signal?: AbortSignal,
 ) {
-  let lastError: any = null;
+  const usable = images.filter(isImage);
+  if (!usable.length) throw new Error("No se pudo leer el contenido visual");
 
-  if (images.length && images.every(isImage)) {
-    try {
-      if (await nvidiaVision(prompt, images, onDelta, signal)) return;
-    } catch (e) {
-      if (signal?.aborted) return;
-      lastError = e;
-    }
-  }
-
-  let puter: any = null;
   try {
-    puter = await loadVisionEngine();
+    const got = await nvidiaVision(prompt, usable, onDelta, signal);
+    if (got || signal?.aborted) return;
+    throw new Error("respuesta vacía");
   } catch (e) {
-    lastError = e;
+    if (signal?.aborted) return;
+    const detail = errText(e);
+    throw new Error("No se pudo analizar el contenido visual" + (detail ? ` (${detail})` : ""));
   }
-
-  if (puter) {
-    for (const model of VISION_MODELS) {
-      if (signal?.aborted) return;
-      try {
-        const arg = images.length === 1 ? images[0] : images;
-        const resp = await puter.ai.chat(prompt, arg, false, { model, stream: true });
-        let got = false;
-        for await (const part of resp) {
-          if (signal?.aborted) return;
-          const t = part?.text ?? "";
-          if (t) {
-            got = true;
-            onDelta(String(t));
-          }
-        }
-        if (got) return;
-      } catch (e) {
-        lastError = e;
-      }
-    }
-
-    try {
-      const resp = await puter.ai.chat(prompt, images[0], false, { model: VISION_MODELS[0] });
-      const txt = resp?.message?.content ?? resp?.text ?? String(resp ?? "");
-      const out = Array.isArray(txt) ? txt.map((p: any) => p?.text || "").join("") : String(txt);
-      if (out.trim()) {
-        onDelta(out);
-        return;
-      }
-    } catch (e) {
-      lastError = e;
-    }
-  }
-
-  const detail = errText(lastError);
-  throw new Error("No se pudo analizar el contenido visual" + (detail ? ` (${detail})` : ""));
 }
