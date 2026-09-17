@@ -154,6 +154,47 @@ export async function buildImagePrompt(request: string, history: ChatMsg[]): Pro
 
 
 
+// Analiza imágenes y/o videos adjuntos del chat (los videos se convierten en fotogramas).
+export async function streamVisionChat(
+  text: string,
+  media: { url: string; type: string }[],
+  history: ChatMsg[],
+  onDelta: (s: string) => void,
+  signal?: AbortSignal,
+) {
+  const { videoFrames } = await import("@/lib/vision");
+  const imgs: string[] = [];
+  let hadVideo = false;
+  for (const m of media) {
+    if (m.type?.startsWith("video")) {
+      hadVideo = true;
+      const frames = await videoFrames(m.url, 2);
+      imgs.push(...frames);
+    } else if (m.type?.startsWith("image")) {
+      imgs.push(m.url);
+    }
+  }
+  if (!imgs.length) throw new Error("No se pudo leer el contenido adjunto");
+
+  const convo = history
+    .slice(-6)
+    .map((m) => `${m.role === "user" ? "Usuario" : "Orión"}: ${typeof m.content === "string" ? m.content : ""}`)
+    .filter((l) => l.trim().length > 10)
+    .join("\n")
+    .slice(0, 2000);
+
+  const prompt =
+    `Eres Orión Estellar, una asistente femenina creada por Linky. Hablas en primera persona; la persona que te escribe es el USUARIO, no eres tú.\n` +
+    (hadVideo
+      ? `Estos son fotogramas de un VIDEO que el usuario envió. Analízalo como un video (qué ocurre, qué se ve, detalles relevantes).\n`
+      : `Analiza la imagen que el usuario envió con detalle.\n`) +
+    (convo ? `Conversación previa:\n${convo}\n` : "") +
+    `Mensaje del usuario: ${text || "(sin texto, describe y analiza el contenido)"}\n` +
+    `Responde SIEMPRE en español.`;
+
+  return visionStream(prompt, imgs, onDelta, signal);
+}
+
 export async function streamDebugVisual(imageUrl: string, notes: string, onDelta: (s: string) => void, signal?: AbortSignal) {
   return visionStream(
     `Eres Orión Estellar. Analiza esta captura de pantalla y detecta errores, fallos o problemas de interfaz. Explica causas probables y cómo solucionarlos.\nNotas del usuario: ${notes || "(sin notas)"}`,

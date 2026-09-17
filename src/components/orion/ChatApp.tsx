@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
-import { streamChat, streamSearch, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
+import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
 
 import { OrionLogo } from "./OrionLogo";
 import { Sidebar } from "./Sidebar";
@@ -27,7 +27,7 @@ const ADMIN_TOKEN = "Admin7880";
 const IMAGE_RE =
   /\b(gener(a|ar|ame|as)|cre(a|ar|ame)|haz(me)?|dibuj(a|ar|ame)|diseñ(a|ar|ame)|ilustr(a|ar|ame)|imagin(a|ar)|pint(a|ar))\b[^.?!]{0,40}\b(imagen|imágenes|imagenes|foto|fotografía|fotografia|dibujo|ilustración|ilustracion|logo|póster|poster|wallpaper|fondo de pantalla|render|arte)\b/i;
 const SEARCH_RE =
-  /\b(busca|búscame|buscame|buscar|investiga|averigua|consulta)\b[^.?!]{0,40}\b(internet|web|google|en línea|en linea|noticias?|actualizad[ao]s?)\b|\b(qué|que)\s+(noticias|ha pasado|está pasando|esta pasando)\b|\búltimas noticias\b/i;
+  /\b(busca|búscame|buscame|buscar|búsqueda|busqueda|investiga|investigar|averigua|averiguar|consulta en|googlea|google)\b|\b(internet|en la web|en línea|en linea)\b|\búltimas? noticias?\b|\bnoticias de (hoy|ayer|esta semana)\b|\b(qué|que)\s+(noticias|ha pasado|está pasando|esta pasando|hay de nuevo)\b|\b(precio|cotización|cotizacion|resultado|marcador) (actual|de hoy)\b/i;
 
 function detectImageRequest(text: string) {
   return IMAGE_RE.test(text);
@@ -199,7 +199,12 @@ export function ChatApp() {
         acc += delta;
         setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: acc } : x));
       };
-      const runner = useSearch ? streamSearch(text, history, onDelta) : streamChat(history, onDelta);
+      const visual = atts.filter((a) => a.type?.startsWith("image") || a.type?.startsWith("video"));
+      const runner = visual.length
+        ? streamVisionChat(text, visual, history.slice(0, -1), onDelta)
+        : useSearch
+          ? streamSearch(text, history, onDelta)
+          : streamChat(history, onDelta);
       await runner;
       const { data: a } = await supabase.from("messages")
         .insert({ conversation_id: id, role: "assistant", content: acc })

@@ -37,6 +37,55 @@ export const VISION_MODELS = [
   "openrouter:meta-llama/llama-4-scout",
 ];
 
+// Extrae fotogramas de un video para poder analizarlo como imágenes.
+export async function videoFrames(src: string, count = 2): Promise<string[]> {
+  if (typeof document === "undefined") return [];
+  const video = document.createElement("video");
+  video.crossOrigin = "anonymous";
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = src;
+
+  const ready = await new Promise<boolean>((resolve) => {
+    const done = () => resolve(true);
+    video.onloadeddata = done;
+    video.onerror = () => resolve(false);
+    window.setTimeout(() => resolve(Boolean(video.videoWidth)), 12000);
+  });
+  if (!ready || !video.videoWidth) return [];
+
+  const dur = isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+  const out: string[] = [];
+  for (let i = 1; i <= count; i++) {
+    const t = Math.min(dur * (i / (count + 1)), Math.max(0, dur - 0.1));
+    const ok = await new Promise<boolean>((resolve) => {
+      video.onseeked = () => resolve(true);
+      video.onerror = () => resolve(false);
+      window.setTimeout(() => resolve(false), 8000);
+      try {
+        video.currentTime = t;
+      } catch {
+        resolve(false);
+      }
+    });
+    if (!ok) continue;
+    const scale = Math.min(1, 900 / Math.max(video.videoWidth, video.videoHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(video.videoWidth * scale));
+    c.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const ctx = c.getContext("2d");
+    if (!ctx) break;
+    ctx.drawImage(video, 0, 0, c.width, c.height);
+    try {
+      out.push(c.toDataURL("image/jpeg", 0.7));
+    } catch {
+      break;
+    }
+  }
+  return out;
+}
+
 function isImage(src: string) {
   if (src.startsWith("data:")) return src.startsWith("data:image/");
   return !/\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(src);
