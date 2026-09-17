@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
-import { streamChat, streamSearch, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
+import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
 
 import { OrionLogo } from "./OrionLogo";
 import { Sidebar } from "./Sidebar";
