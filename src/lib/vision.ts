@@ -1,41 +1,5 @@
-// Análisis visual: NVIDIA (principal) con motor gratuito Puter.js como respaldo.
-let loading: Promise<any> | null = null;
+// Análisis visual: exclusivamente con la API de NVIDIA del usuario.
 
-export function loadVisionEngine(): Promise<any> {
-  if (typeof window === "undefined") return Promise.reject(new Error("Solo disponible en el navegador"));
-  const w = window as any;
-  if (w.puter) return Promise.resolve(w.puter);
-  if (!loading) {
-    loading = new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = "https://js.puter.com/v2/";
-      s.async = true;
-      s.onload = () => {
-        const tries = 40;
-        let n = 0;
-        const t = window.setInterval(() => {
-          if ((window as any).puter?.ai) {
-            window.clearInterval(t);
-            resolve((window as any).puter);
-          } else if (++n > tries) {
-            window.clearInterval(t);
-            reject(new Error("El motor de visión no se inicializó"));
-          }
-        }, 250);
-      };
-      s.onerror = () => reject(new Error("No se pudo cargar el motor de visión"));
-      document.head.appendChild(s);
-    });
-  }
-  return loading;
-}
-
-export const VISION_MODELS = [
-  "google/gemini-2.5-flash",
-  "gpt-5-nano",
-  "claude-sonnet-4",
-  "openrouter:meta-llama/llama-4-scout",
-];
 
 // Extrae fotogramas de un video para poder analizarlo como imágenes.
 export async function videoFrames(src: string, count = 2): Promise<string[]> {
