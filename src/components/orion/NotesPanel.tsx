@@ -170,13 +170,13 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
         ...active,
         category: r.category || active.category,
         status: r.status || active.status,
-        section: r.section || active.section,
+        // La IA no puede mover la nota de sección (antes parecía que se eliminaba)
+        section: active.section,
         ai_summary: r.summary || active.ai_summary,
       };
       await supabase.from("notes").update({
         category: updated.category,
         status: updated.status,
-        section: updated.section,
         ai_summary: updated.ai_summary,
         last_activity: new Date().toISOString(),
       }).eq("id", active.id);
