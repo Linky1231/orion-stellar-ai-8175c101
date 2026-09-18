@@ -64,8 +64,22 @@ export function Sidebar({
 
   async function remove(id: string) {
     sfx.tap();
+    if (!confirm("¿Eliminar esta conversación?")) return;
+    await supabase.from("messages" as any).delete().eq("conversation_id", id);
     await supabase.from("conversations").delete().eq("id", id);
     if (id === currentId) onNew();
+    load();
+  }
+
+  async function removeAll() {
+    sfx.tap();
+    if (!convs.length) return;
+    if (!confirm("¿Eliminar todas las conversaciones? Esta acción no se puede deshacer.")) return;
+    const did = getDeviceId();
+    const ids = convs.map((c) => c.id);
+    await supabase.from("messages" as any).delete().in("conversation_id", ids);
+    await supabase.from("conversations").delete().eq("device_id", did);
+    onNew();
     load();
   }
 
