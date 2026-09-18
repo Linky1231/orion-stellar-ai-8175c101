@@ -64,8 +64,22 @@ export function Sidebar({
 
   async function remove(id: string) {
     sfx.tap();
+    if (!confirm("¿Eliminar esta conversación?")) return;
+    await supabase.from("messages" as any).delete().eq("conversation_id", id);
     await supabase.from("conversations").delete().eq("id", id);
     if (id === currentId) onNew();
+    load();
+  }
+
+  async function removeAll() {
+    sfx.tap();
+    if (!convs.length) return;
+    if (!confirm("¿Eliminar todas las conversaciones? Esta acción no se puede deshacer.")) return;
+    const did = getDeviceId();
+    const ids = convs.map((c) => c.id);
+    await supabase.from("messages" as any).delete().in("conversation_id", ids);
+    await supabase.from("conversations").delete().eq("device_id", did);
+    onNew();
     load();
   }
 
@@ -137,7 +151,17 @@ export function Sidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 pb-3">
-          <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">Recientes</div>
+          <div className="px-2 py-1 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Recientes</span>
+            {convs.length > 0 && (
+              <button
+                onClick={removeAll}
+                className="tap text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg text-destructive hover:bg-destructive/10 transition"
+              >
+                <Trash2 className="w-3 h-3" /> Eliminar todo
+              </button>
+            )}
+          </div>
           {filtered.length === 0 && (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">Sin conversaciones</div>
           )}
