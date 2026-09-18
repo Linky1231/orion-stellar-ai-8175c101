@@ -151,7 +151,17 @@ export function Sidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 pb-3">
-          <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">Recientes</div>
+          <div className="px-2 py-1 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Recientes</span>
+            {convs.length > 0 && (
+              <button
+                onClick={removeAll}
+                className="tap text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg text-destructive hover:bg-destructive/10 transition"
+              >
+                <Trash2 className="w-3 h-3" /> Eliminar todo
+              </button>
+            )}
+          </div>
           {filtered.length === 0 && (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">Sin conversaciones</div>
           )}
