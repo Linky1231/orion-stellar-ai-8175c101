@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-const MODEL = "nvidia/nemotron-3-super-120b-a12b";
+const MODEL = "meta/llama-3.2-11b-vision-instruct";
 
 type Msg = { role: string; content: any };
 
@@ -63,7 +63,7 @@ export const Route = createFileRoute("/api/ai/chat")({
               messages,
               temperature: 0.7,
               top_p: 0.95,
-              max_tokens: 8192,
+              max_tokens: 2048,
               stream: true,
             }),
           });
