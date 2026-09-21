@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-const MODEL = "mistralai/mistral-nemotron";
+const MODEL = "nvidia/nemotron-3-super-120b-a12b";
 
 type Msg = { role: string; content: any };
 
