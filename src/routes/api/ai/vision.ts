@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-const VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
-const MAX_B64 = 180_000; // límite de imagen en línea del proveedor
+const ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const VISION_MODEL = "google/gemini-3.8-flash";
+const MAX_B64 = 8_000_000; // límite de imagen en línea del proveedor
 
 function toBase64(buf: Uint8Array) {
   let bin = "";
@@ -34,10 +34,10 @@ export const Route = createFileRoute("/api/ai/vision")({
       POST: async ({ request }) => {
         const body = (await request.json().catch(() => ({}))) as { prompt?: string; images?: string[] };
         const prompt = body.prompt || "Analiza la imagen y descríbela con detalle.";
-        const srcs = (body.images || []).slice(0, 1);
+        const srcs = (body.images || []).slice(0, 8);
 
-        const apiKey = process.env["NVIDIA_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de NVIDIA." }, { status: 500 });
+        const apiKey = process.env["LOVABLE_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de Lovable AI." }, { status: 500 });
 
         const images = (await Promise.all(srcs.map(toDataUrl))).filter(Boolean) as string[];
         if (!images.length)
@@ -56,7 +56,8 @@ export const Route = createFileRoute("/api/ai/vision")({
           upstream = await fetch(ENDPOINT, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${apiKey}`,
+              "Lovable-API-Key": apiKey,
+              "X-Lovable-AIG-SDK": "fetch",
               "Content-Type": "application/json",
               Accept: "text/event-stream",
             },
@@ -78,8 +79,8 @@ export const Route = createFileRoute("/api/ai/vision")({
         if (!upstream.ok || !upstream.body) {
           const detail = await upstream.text().catch(() => "");
           return Response.json(
-            { error: `El proveedor de visión no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
-            { status: 502 },
+            { error: upstream.status===402?"Sin créditos de IA. Recarga en Ajustes → Planes y créditos.":upstream.status===429?"Demasiadas solicitudes, intenta en unos segundos.":`El proveedor de visión no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
+            { status: upstream.status===402||upstream.status===429?upstream.status:502 },
           );
         }
 

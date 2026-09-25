@@ -1,4 +1,4 @@
-// Análisis visual: exclusivamente con la API de NVIDIA del usuario.
+// Análisis visual: con Gemini a través de Lovable AI.
 
 
 // Extrae fotogramas de un video para poder analizarlo como imágenes.
@@ -96,7 +96,7 @@ async function shrink(src: string, max = 900, quality = 0.72): Promise<string> {
   }
 }
 
-async function nvidiaVision(
+async function geminiVision(
   prompt: string,
   images: string[],
   onDelta: (s: string) => void,
@@ -155,7 +155,7 @@ export async function visionStream(
   if (!usable.length) throw new Error("No se pudo leer el contenido visual");
 
   try {
-    const got = await nvidiaVision(prompt, usable, onDelta, signal);
+    const got = await geminiVision(prompt, usable, onDelta, signal);
     if (got || signal?.aborted) return;
     throw new Error("respuesta vacía");
   } catch (e) {

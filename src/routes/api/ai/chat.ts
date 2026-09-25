@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
-const MODEL = "meta/llama-3.2-11b-vision-instruct";
+const ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "google/gemini-3.8-flash";
 
 type Msg = { role: string; content: any };
 
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
         const incoming = body.messages || [];
 
-        const apiKey = process.env["NVIDIA_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de NVIDIA." }, { status: 500 });
+        const apiKey = process.env["LOVABLE_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de Lovable AI." }, { status: 500 });
 
         // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
         const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
@@ -54,7 +54,8 @@ export const Route = createFileRoute("/api/ai/chat")({
           upstream = await fetch(ENDPOINT, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${apiKey}`,
+              "Lovable-API-Key": apiKey,
+              "X-Lovable-AIG-SDK": "fetch",
               "Content-Type": "application/json",
               Accept: "text/event-stream",
             },
@@ -62,8 +63,7 @@ export const Route = createFileRoute("/api/ai/chat")({
               model: MODEL,
               messages,
               temperature: 0.7,
-              top_p: 0.95,
-              max_tokens: 2048,
+                            max_tokens: 8192,
               stream: true,
             }),
           });
@@ -74,8 +74,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         if (!upstream.ok || !upstream.body) {
           const detail = await upstream.text().catch(() => "");
           return Response.json(
-            { error: `El proveedor no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
-            { status: 502 },
+            { error: upstream.status===402?"Sin créditos de IA. Recarga en Ajustes → Planes y créditos.":upstream.status===429?"Demasiadas solicitudes, intenta en unos segundos.":`El proveedor no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
+            { status: upstream.status===402||upstream.status===429?upstream.status:502 },
           );
         }
 
