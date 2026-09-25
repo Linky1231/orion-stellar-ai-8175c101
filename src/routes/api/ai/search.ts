@@ -60,6 +60,30 @@ export const Route = createFileRoute("/api/ai/search")({
       POST: async ({ request }) => {
         const { query } = (await request.json().catch(() => ({}))) as { query?: string };
         if (!query) return Response.json({ error: "Falta la consulta." }, { status: 400 });
+        const lk = process.env["LOVABLE_API_KEY"];
+        const pk = process.env["PERPLEXITY_API_KEY"];
+        if (lk && pk) {
+          try {
+            const res = await fetch("https://connector-gateway.lovable.dev/perplexity/search", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": pk, "Content-Type": "application/json" },
+              body: JSON.stringify({ query, max_results: 6 }),
+            });
+            if (res.ok) {
+              const json: any = await res.json();
+              const results: Hit[] = (json?.results || []).map((r: any) => ({
+                title: r.title || r.url,
+                url: r.url,
+                snippet: r.snippet || "",
+              }));
+              if (results.length) return Response.json({ results });
+            } else {
+              console.error("Perplexity", res.status, await res.text());
+            }
+          } catch (e) {
+            console.error("Perplexity", e);
+          }
+        }
         try {
           const results = await duckduckgo(query);
           return Response.json({ results });
