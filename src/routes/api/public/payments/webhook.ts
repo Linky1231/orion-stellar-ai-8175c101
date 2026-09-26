@@ -33,7 +33,7 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
             await (supabaseAdmin.from("purchases" as any) as any).upsert(
               {
                 user_id: userId,
-                price_id: tx?.items?.[0]?.price?.custom_data?.external_id || tx?.items?.[0]?.price?.id || "orion_access_once",
+                price_id: tx?.items?.[0]?.price?.import_meta?.external_id || tx?.items?.[0]?.price?.id || "orion_access_once",
                 transaction_id: tx.id,
                 environment,
                 status: "paid",
