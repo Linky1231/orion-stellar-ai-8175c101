@@ -294,6 +294,36 @@ export type Database = {
         }
         Relationships: []
       }
+      purchases: {
+        Row: {
+          created_at: string
+          environment: string
+          id: string
+          price_id: string
+          status: string
+          transaction_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          environment: string
+          id?: string
+          price_id: string
+          status?: string
+          transaction_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          environment?: string
+          id?: string
+          price_id?: string
+          status?: string
+          transaction_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_memory: {
         Row: {
           content: string
