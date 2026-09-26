@@ -7,7 +7,7 @@ export function gatewayFetch(env: PaddleEnv, path: string, init: RequestInit = {
   return fetch(`https://connector-gateway.lovable.dev/paddle${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${lk}`,
+      "Lovable-API-Key": lk,
       "X-Connection-Api-Key": pk,
       "Content-Type": "application/json",
       ...(init.headers || {}),
