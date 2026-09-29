@@ -110,13 +110,15 @@ export function ChatApp() {
     const text = input.trim();
     if (!text && pending.length === 0) return;
 
-    // Orión decide sola: si el usuario pide una imagen o una búsqueda, activa esa función.
-    const wantsImage = !pending.length && detectImageRequest(text);
-    const wantsSearch = !wantsImage && detectSearchRequest(text);
+    // Orión decide sola: si el usuario pide una imagen, una búsqueda o usar su teléfono.
+    const wantsPhone = !pending.length && detectPhoneRequest(text);
+    const wantsImage = !wantsPhone && !pending.length && detectImageRequest(text);
+    const wantsSearch = !wantsPhone && !wantsImage && detectSearchRequest(text);
     if (wantsImage) setImageMode(true);
     if (wantsSearch) setSearchMode(true);
-    const useImage = imageMode || wantsImage;
-    const useSearch = !useImage && (searchMode || wantsSearch);
+    const useImage = !wantsPhone && (imageMode || wantsImage);
+    const useSearch = !useImage && !wantsPhone && (searchMode || wantsSearch);
+
 
     // Admin trigger
     if (text === ADMIN_TOKEN) {
