@@ -172,7 +172,39 @@ export function ChatApp() {
       return;
     }
 
+    // Control del teléfono del usuario (AGI)
+    if (wantsPhone) {
+      setStreaming(true);
+      const tempId = "tmp-" + Date.now();
+      setMessages((m) => [...m, { id: tempId, conversation_id: id, role: "assistant", content: "", attachments: [], created_at: new Date().toISOString() }]);
+      setPhone({ phase: "checking", label: "Buscando tu teléfono…", steps: [] });
+      const hist: ChatMsg[] = messages.map((m) => ({ role: m.role as any, content: m.content }));
+      let acc = "";
+      try {
+        const instruction = await buildPhonePrompt(text, hist);
+        const outcome = await runPhoneTask(instruction, (p) => setPhone(p));
+        await streamPhoneReport(text, instruction, outcome, hist, (d) => {
+          acc += d;
+          setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: acc } : x));
+        });
+        const { data: a } = await supabase.from("messages")
+          .insert({ conversation_id: id, role: "assistant", content: acc })
+          .select().single();
+        if (a) setMessages((m) => m.map(x => x.id === tempId ? (a as DBMsg) : x));
+        sfx.receive();
+      } catch (e: any) {
+        sfx.error();
+        setPhone((p) => (p ? { ...p, phase: "error", label: "No pude usar tu teléfono" } : p));
+        setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: "No pude usar tu teléfono: " + (e?.message || e) } : x));
+      }
+      setStreaming(false);
+      window.setTimeout(() => setPhone(null), 6000);
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", id);
+      return;
+    }
+
     // Build chat history for AI (with multimodal content)
+
     const history: ChatMsg[] = messages.concat(saved ? [saved as DBMsg] : []).map((m) => {
       const imgs = (m.attachments || []).filter((a: any) => a.type?.startsWith("image"));
       const vids = (m.attachments || []).filter((a: any) => a.type?.startsWith("video"));
