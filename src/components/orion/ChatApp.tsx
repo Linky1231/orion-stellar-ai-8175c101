@@ -3,14 +3,17 @@ import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
-import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
+import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, buildPhonePrompt, streamPhoneReport, type ChatMsg } from "@/lib/orion-api";
+import { detectPhoneRequest, runPhoneTask, type PhoneProgress } from "@/lib/agi";
 
 import { OrionLogo } from "./OrionLogo";
 import { Sidebar } from "./Sidebar";
 import { NotesPanel } from "./NotesPanel";
 import { DebugPanel } from "./DebugPanel";
+import { PhoneTaskCard } from "./PhoneTaskCard";
 
 import { AdminPanel } from "./AdminPanel";
+
 
 import { Menu, Send, Paperclip, User, Copy, Volume2, Square, X, Sparkles } from "lucide-react";
 
