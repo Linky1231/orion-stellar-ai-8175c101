@@ -65,6 +65,8 @@ export function ChatApp() {
   const [pending, setPending] = useState<{ url: string; type: string; name: string }[]>([]);
   const [imageMode, setImageMode] = useState(false);
   const [searchMode, setSearchMode] = useState(false);
+  const [phone, setPhone] = useState<PhoneProgress | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
