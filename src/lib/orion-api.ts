@@ -204,6 +204,71 @@ export async function streamDebugVisual(imageUrl: string, notes: string, onDelta
   );
 }
 
+// ---- Control del teléfono (AGI) ----
+
+/** Convierte lo que pide el usuario en una instrucción clara para el agente del teléfono. */
+export async function buildPhonePrompt(request: string, history: ChatMsg[]): Promise<string> {
+  const convo = history
+    .slice(-8)
+    .map((m) => `${m.role === "user" ? "Usuario" : "Orión"}: ${typeof m.content === "string" ? m.content : ""}`)
+    .filter((l) => l.trim().length > 8)
+    .join("\n")
+    .slice(0, 3000);
+  try {
+    const out = await aiText(
+      [
+        {
+          role: "system",
+          content:
+            "Conviertes peticiones en instrucciones para un agente que controla un teléfono Android real. " +
+            "Devuelve UNA sola instrucción clara y concreta en español, con la app y los datos exactos que hagan falta " +
+            "(nombres, textos, destinatarios) tomados de la conversación. Sin explicaciones, sin comillas, sin listas. Máximo 40 palabras.",
+        },
+        {
+          role: "user",
+          content: `Conversación previa:\n${convo || "(sin contexto)"}\n\nPetición: ${request}`,
+        },
+      ],
+      { max_tokens: 200 },
+    );
+    const clean = out.replace(/^["'\s]+|["'\s]+$/g, "").split("\n").filter(Boolean).pop() || "";
+    return clean.length > 4 ? clean : request;
+  } catch {
+    return request;
+  }
+}
+
+/** Orión cuenta con sus palabras lo que pasó en el teléfono. */
+export async function streamPhoneReport(
+  userText: string,
+  instruction: string,
+  outcome: { ok: boolean; result: string; steps: string[]; terminal?: string },
+  history: ChatMsg[],
+  onDelta: (s: string) => void,
+  signal?: AbortSignal,
+) {
+  const ctx = await buildKnowledgeMessages();
+  const pasos = outcome.steps.slice(0, 30).map((s, i) => `${i + 1}. ${s}`).join("\n");
+  const msgs: ChatMsg[] = [
+    ...ctx,
+    {
+      role: "system",
+      content:
+        "ACABAS DE CONTROLAR EL TELÉFONO DEL USUARIO (tú misma, Orión, lo hiciste con la app AGI).\n" +
+        `Instrucción ejecutada: ${instruction}\n` +
+        `Estado final: ${outcome.terminal || (outcome.ok ? "ok" : "sin completar")}\n` +
+        `Resultado reportado por el teléfono: ${outcome.result || "(sin texto)"}\n` +
+        (pasos ? `Lo que viste e hiciste en la pantalla:\n${pasos}\n` : "") +
+        "Cuéntaselo al usuario en primera persona, breve y natural. Si algo falló o quedó pendiente, dilo con claridad y di qué debe hacer él.",
+    },
+    ...history,
+    { role: "user", content: userText || instruction },
+  ];
+  return aiStream(msgs, onDelta, signal);
+}
+
+
+
 // ---- Imágenes ----
 export async function generateImage(prompt: string): Promise<string> {
   return aiImage(prompt);
