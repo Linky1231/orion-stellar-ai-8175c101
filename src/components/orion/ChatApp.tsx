@@ -3,14 +3,17 @@ import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
-import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
+import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, buildPhonePrompt, streamPhoneReport, type ChatMsg } from "@/lib/orion-api";
+import { detectPhoneRequest, runPhoneTask, type PhoneProgress } from "@/lib/agi";
 
 import { OrionLogo } from "./OrionLogo";
 import { Sidebar } from "./Sidebar";
 import { NotesPanel } from "./NotesPanel";
 import { DebugPanel } from "./DebugPanel";
+import { PhoneTaskCard } from "./PhoneTaskCard";
 
 import { AdminPanel } from "./AdminPanel";
+
 
 import { Menu, Send, Paperclip, User, Copy, Volume2, Square, X, Sparkles } from "lucide-react";
 
@@ -62,6 +65,8 @@ export function ChatApp() {
   const [pending, setPending] = useState<{ url: string; type: string; name: string }[]>([]);
   const [imageMode, setImageMode] = useState(false);
   const [searchMode, setSearchMode] = useState(false);
+  const [phone, setPhone] = useState<PhoneProgress | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -105,13 +110,15 @@ export function ChatApp() {
     const text = input.trim();
     if (!text && pending.length === 0) return;
 
-    // Orión decide sola: si el usuario pide una imagen o una búsqueda, activa esa función.
-    const wantsImage = !pending.length && detectImageRequest(text);
-    const wantsSearch = !wantsImage && detectSearchRequest(text);
+    // Orión decide sola: si el usuario pide una imagen, una búsqueda o usar su teléfono.
+    const wantsPhone = !pending.length && detectPhoneRequest(text);
+    const wantsImage = !wantsPhone && !pending.length && detectImageRequest(text);
+    const wantsSearch = !wantsPhone && !wantsImage && detectSearchRequest(text);
     if (wantsImage) setImageMode(true);
     if (wantsSearch) setSearchMode(true);
-    const useImage = imageMode || wantsImage;
-    const useSearch = !useImage && (searchMode || wantsSearch);
+    const useImage = !wantsPhone && (imageMode || wantsImage);
+    const useSearch = !useImage && !wantsPhone && (searchMode || wantsSearch);
+
 
     // Admin trigger
     if (text === ADMIN_TOKEN) {
@@ -165,7 +172,39 @@ export function ChatApp() {
       return;
     }
 
+    // Control del teléfono del usuario (AGI)
+    if (wantsPhone) {
+      setStreaming(true);
+      const tempId = "tmp-" + Date.now();
+      setMessages((m) => [...m, { id: tempId, conversation_id: id, role: "assistant", content: "", attachments: [], created_at: new Date().toISOString() }]);
+      setPhone({ phase: "checking", label: "Buscando tu teléfono…", steps: [] });
+      const hist: ChatMsg[] = messages.map((m) => ({ role: m.role as any, content: m.content }));
+      let acc = "";
+      try {
+        const instruction = await buildPhonePrompt(text, hist);
+        const outcome = await runPhoneTask(instruction, (p) => setPhone(p));
+        await streamPhoneReport(text, instruction, outcome, hist, (d) => {
+          acc += d;
+          setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: acc } : x));
+        });
+        const { data: a } = await supabase.from("messages")
+          .insert({ conversation_id: id, role: "assistant", content: acc })
+          .select().single();
+        if (a) setMessages((m) => m.map(x => x.id === tempId ? (a as DBMsg) : x));
+        sfx.receive();
+      } catch (e: any) {
+        sfx.error();
+        setPhone((p) => (p ? { ...p, phase: "error", label: "No pude usar tu teléfono" } : p));
+        setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: "No pude usar tu teléfono: " + (e?.message || e) } : x));
+      }
+      setStreaming(false);
+      window.setTimeout(() => setPhone(null), 6000);
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", id);
+      return;
+    }
+
     // Build chat history for AI (with multimodal content)
+
     const history: ChatMsg[] = messages.concat(saved ? [saved as DBMsg] : []).map((m) => {
       const imgs = (m.attachments || []).filter((a: any) => a.type?.startsWith("image"));
       const vids = (m.attachments || []).filter((a: any) => a.type?.startsWith("video"));
