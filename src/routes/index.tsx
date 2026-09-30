@@ -3,19 +3,11 @@ import { ChatApp } from "@/components/orion/ChatApp";
 import { AuthScreen } from "@/components/orion/AuthScreen";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
-import { Paywall, useHasPaid } from "@/components/orion/Paywall";
-
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center">
     <Loader2 className="w-6 h-6 animate-spin text-primary" />
   </div>
 );
-
-function Paid() {
-  const { paid, check } = useHasPaid();
-  if (paid === null) return <Spinner />;
-  return paid ? <ChatApp /> : <Paywall onPaid={check} />;
-}
 
 function Gate() {
   const { user, loading } = useAuth();
