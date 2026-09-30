@@ -20,7 +20,8 @@ function Paid() {
 function Gate() {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  return user ? <Paid key={user.id} /> : <AuthScreen />;
+  // Cobro desactivado temporalmente: acceso directo al chat tras iniciar sesión.
+  return user ? <ChatApp key={user.id} /> : <AuthScreen />;
 }
 
 export const Route = createFileRoute("/")({
