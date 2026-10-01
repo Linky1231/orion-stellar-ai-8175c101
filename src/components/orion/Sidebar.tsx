@@ -5,7 +5,6 @@ import { sfx } from "@/lib/sounds";
 import { Search, Plus, Trash2, Pencil, MessageSquare, StickyNote, X, ImagePlus, Bug, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { OrionLogo } from "./OrionLogo";
-import { McpLinkButton } from "./McpLinkButton";
 
 type Conv = { id: string; title: string; updated_at: string };
 
@@ -135,7 +134,6 @@ export function Sidebar({
           >
             <Bug className="w-4 h-4 text-primary" /> Modo Debug
           </button>
-          <McpLinkButton />
         </div>
 
 
