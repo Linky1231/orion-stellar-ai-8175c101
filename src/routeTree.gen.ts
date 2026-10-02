@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiOfficeUploadRouteImport } from './routes/api/office/upload'
 import { Route as ApiAiVisionRouteImport } from './routes/api/ai/vision'
 import { Route as ApiAiSearchRouteImport } from './routes/api/ai/search'
 import { Route as ApiAiImageRouteImport } from './routes/api/ai/image'
@@ -20,6 +21,11 @@ import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOfficeUploadRoute = ApiOfficeUploadRouteImport.update({
+  id: '/api/office/upload',
+  path: '/api/office/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiVisionRoute = ApiAiVisionRouteImport.update({
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
   '/api/ai/vision': typeof ApiAiVisionRoute
+  '/api/office/upload': typeof ApiOfficeUploadRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
   '/api/ai/vision': typeof ApiAiVisionRoute
+  '/api/office/upload': typeof ApiOfficeUploadRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
   '/api/ai/vision': typeof ApiAiVisionRoute
+  '/api/office/upload': typeof ApiOfficeUploadRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/api/ai/image'
     | '/api/ai/search'
     | '/api/ai/vision'
+    | '/api/office/upload'
     | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/api/ai/image'
     | '/api/ai/search'
     | '/api/ai/vision'
+    | '/api/office/upload'
     | '/api/public/payments/webhook'
   id:
     | '__root__'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/api/ai/image'
     | '/api/ai/search'
     | '/api/ai/vision'
+    | '/api/office/upload'
     | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -119,6 +131,7 @@ export interface RootRouteChildren {
   ApiAiImageRoute: typeof ApiAiImageRoute
   ApiAiSearchRoute: typeof ApiAiSearchRoute
   ApiAiVisionRoute: typeof ApiAiVisionRoute
+  ApiOfficeUploadRoute: typeof ApiOfficeUploadRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
@@ -129,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/office/upload': {
+      id: '/api/office/upload'
+      path: '/api/office/upload'
+      fullPath: '/api/office/upload'
+      preLoaderRoute: typeof ApiOfficeUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/vision': {
@@ -183,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAiImageRoute: ApiAiImageRoute,
   ApiAiSearchRoute: ApiAiSearchRoute,
   ApiAiVisionRoute: ApiAiVisionRoute,
+  ApiOfficeUploadRoute: ApiOfficeUploadRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport
