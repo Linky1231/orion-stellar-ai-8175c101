@@ -5,6 +5,7 @@ import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
 import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, buildPhonePrompt, streamPhoneReport, type ChatMsg } from "@/lib/orion-api";
 import { detectPhoneRequest, runPhoneTask, type PhoneProgress } from "@/lib/agi";
+import { detectOfficeRequest, buildOfficeSpec, makeOfficeFile, saveToOneDrive } from "@/lib/office";
 
 import { OrionLogo } from "./OrionLogo";
 import { Sidebar } from "./Sidebar";
@@ -168,6 +169,34 @@ export function ChatApp() {
       }
       setStreaming(false);
       setImageMode(false);
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", id);
+      return;
+    }
+
+    // Archivos: PowerPoint, Excel, Word y PDF
+    const officeKind = !wantsPhone && !pending.length ? detectOfficeRequest(text) : null;
+    if (officeKind) {
+      setStreaming(true);
+      const label = { pptx: "presentación de PowerPoint", xlsx: "archivo de Excel", docx: "documento de Word", pdf: "PDF" }[officeKind];
+      const tempId = "doc-" + Date.now();
+      setMessages((m) => [...m, { id: tempId, conversation_id: id, role: "assistant", content: `Creando tu ${label}…`, attachments: [], created_at: new Date().toISOString() }]);
+      try {
+        const hist: ChatMsg[] = messages.map((m) => ({ role: m.role as any, content: m.content }));
+        const spec = await buildOfficeSpec(officeKind, text, hist);
+        const file = await makeOfficeFile(officeKind, spec);
+        const [url, web] = await Promise.all([uploadAttachment(file), saveToOneDrive(officeKind, file)]);
+        const content = `Listo, aquí tienes tu ${label}: **${file.name}**` + (web ? `\n\nTambién lo guardé en tu OneDrive (carpeta Orion): [abrir en Microsoft](${web})` : "");
+        const { data: a } = await supabase.from("messages").insert({
+          conversation_id: id, role: "assistant", content,
+          attachments: [{ url, type: file.type, name: file.name }],
+        }).select().single();
+        if (a) setMessages((m) => m.map(x => x.id === tempId ? (a as DBMsg) : x));
+        sfx.receive();
+      } catch (e: any) {
+        sfx.error();
+        setMessages((m) => m.map(x => x.id === tempId ? { ...x, content: `No pude crear el ${label}: ` + (e?.message || e) } : x));
+      }
+      setStreaming(false);
       await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", id);
       return;
     }
@@ -447,7 +476,7 @@ function Bubble({ m }: { m: DBMsg }) {
           ) : a.type?.startsWith("video") ? (
             <video key={i} src={a.url} controls playsInline className="rounded-2xl max-h-80 border border-border shadow-soft" />
           ) : (
-            <a key={i} href={a.url} target="_blank" className="text-xs underline">{a.name}</a>
+            <a key={i} href={a.url} target="_blank" rel="noreferrer" download={a.name} className="liquid-glass rounded-2xl px-4 py-3 text-sm font-medium flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-transform">📄 Descargar {a.name}</a>
           )
 
         ))}
