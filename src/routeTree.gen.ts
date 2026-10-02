@@ -10,12 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiAgiMcpRouteImport } from './routes/api/agi/mcp'
-import { Route as ApiAiChatRouteImport } from './routes/api/ai/chat'
-import { Route as ApiAiImageRouteImport } from './routes/api/ai/image'
-import { Route as ApiAiSearchRouteImport } from './routes/api/ai/search'
-import { Route as ApiAiVisionRouteImport } from './routes/api/ai/vision'
 import { Route as ApiOfficeUploadRouteImport } from './routes/api/office/upload'
+import { Route as ApiAiVisionRouteImport } from './routes/api/ai/vision'
+import { Route as ApiAiSearchRouteImport } from './routes/api/ai/search'
+import { Route as ApiAiImageRouteImport } from './routes/api/ai/image'
+import { Route as ApiAiChatRouteImport } from './routes/api/ai/chat'
+import { Route as ApiAgiMcpRouteImport } from './routes/api/agi/mcp'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,24 +23,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAgiMcpRoute = ApiAgiMcpRouteImport.update({
-  id: '/api/agi/mcp',
-  path: '/api/agi/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAiChatRoute = ApiAiChatRouteImport.update({
-  id: '/api/ai/chat',
-  path: '/api/ai/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAiImageRoute = ApiAiImageRouteImport.update({
-  id: '/api/ai/image',
-  path: '/api/ai/image',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAiSearchRoute = ApiAiSearchRouteImport.update({
-  id: '/api/ai/search',
-  path: '/api/ai/search',
+const ApiOfficeUploadRoute = ApiOfficeUploadRouteImport.update({
+  id: '/api/office/upload',
+  path: '/api/office/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiVisionRoute = ApiAiVisionRouteImport.update({
@@ -48,9 +33,24 @@ const ApiAiVisionRoute = ApiAiVisionRouteImport.update({
   path: '/api/ai/vision',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiOfficeUploadRoute = ApiOfficeUploadRouteImport.update({
-  id: '/api/office/upload',
-  path: '/api/office/upload',
+const ApiAiSearchRoute = ApiAiSearchRouteImport.update({
+  id: '/api/ai/search',
+  path: '/api/ai/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiImageRoute = ApiAiImageRouteImport.update({
+  id: '/api/ai/image',
+  path: '/api/ai/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAiChatRoute = ApiAiChatRouteImport.update({
+  id: '/api/ai/chat',
+  path: '/api/ai/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgiMcpRoute = ApiAgiMcpRouteImport.update({
+  id: '/api/agi/mcp',
+  path: '/api/agi/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicPaymentsWebhookRoute =
@@ -144,32 +144,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/agi/mcp': {
-      id: '/api/agi/mcp'
-      path: '/api/agi/mcp'
-      fullPath: '/api/agi/mcp'
-      preLoaderRoute: typeof ApiAgiMcpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/ai/chat': {
-      id: '/api/ai/chat'
-      path: '/api/ai/chat'
-      fullPath: '/api/ai/chat'
-      preLoaderRoute: typeof ApiAiChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/ai/image': {
-      id: '/api/ai/image'
-      path: '/api/ai/image'
-      fullPath: '/api/ai/image'
-      preLoaderRoute: typeof ApiAiImageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/ai/search': {
-      id: '/api/ai/search'
-      path: '/api/ai/search'
-      fullPath: '/api/ai/search'
-      preLoaderRoute: typeof ApiAiSearchRouteImport
+    '/api/office/upload': {
+      id: '/api/office/upload'
+      path: '/api/office/upload'
+      fullPath: '/api/office/upload'
+      preLoaderRoute: typeof ApiOfficeUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/vision': {
@@ -179,11 +158,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiVisionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/office/upload': {
-      id: '/api/office/upload'
-      path: '/api/office/upload'
-      fullPath: '/api/office/upload'
-      preLoaderRoute: typeof ApiOfficeUploadRouteImport
+    '/api/ai/search': {
+      id: '/api/ai/search'
+      path: '/api/ai/search'
+      fullPath: '/api/ai/search'
+      preLoaderRoute: typeof ApiAiSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai/image': {
+      id: '/api/ai/image'
+      path: '/api/ai/image'
+      fullPath: '/api/ai/image'
+      preLoaderRoute: typeof ApiAiImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ai/chat': {
+      id: '/api/ai/chat'
+      path: '/api/ai/chat'
+      fullPath: '/api/ai/chat'
+      preLoaderRoute: typeof ApiAiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agi/mcp': {
+      id: '/api/agi/mcp'
+      path: '/api/agi/mcp'
+      fullPath: '/api/agi/mcp'
+      preLoaderRoute: typeof ApiAgiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/payments/webhook': {
