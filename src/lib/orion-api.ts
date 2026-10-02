@@ -284,7 +284,10 @@ export function fileToDataUrl(file: File): Promise<string> {
 }
 
 export async function uploadAttachment(file: File, bucket = "chat-attachments"): Promise<string> {
-  const path = `${crypto.randomUUID()}-${file.name}`;
+  const safeName = file.name
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_").slice(-100) || "archivo";
+  const path = `${crypto.randomUUID()}-${safeName}`;
   const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
   if (error) throw error;
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
