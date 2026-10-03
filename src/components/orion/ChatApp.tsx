@@ -6,6 +6,7 @@ import { sfx } from "@/lib/sounds";
 import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, buildPhonePrompt, streamPhoneReport, type ChatMsg } from "@/lib/orion-api";
 import { detectPhoneRequest, runPhoneTask, type PhoneProgress } from "@/lib/agi";
 import { detectOfficeRequest, buildOfficeSpec, makeOfficeFile, saveToOneDrive } from "@/lib/office";
+import { Button } from "@/components/ui/button";
 
 import { OrionLogo } from "./OrionLogo";
 import { Sidebar } from "./Sidebar";
@@ -16,7 +17,7 @@ import { PhoneTaskCard } from "./PhoneTaskCard";
 import { AdminPanel } from "./AdminPanel";
 
 
-import { Menu, Send, Paperclip, User, Copy, Volume2, Square, X, Sparkles } from "lucide-react";
+import { Menu, Send, Paperclip, User, Copy, Volume2, Square, X, Sparkles, Presentation, FileSpreadsheet, FileText, FileType2, Download, ExternalLink } from "lucide-react";
 
 const SpeechCtx = createContext<{ speakingId: string | null; toggle: (id: string, text: string) => void }>({ speakingId: null, toggle: () => {} });
 
@@ -185,10 +186,9 @@ export function ChatApp() {
         const spec = await buildOfficeSpec(officeKind, text, hist);
         const file = await makeOfficeFile(officeKind, spec);
         const [url, web] = await Promise.all([uploadAttachment(file), saveToOneDrive(officeKind, file)]);
-        const content = `Listo, aquí tienes tu ${label}: **${file.name}**` + (web ? `\n\nTambién lo guardé en tu OneDrive (carpeta Orion): [abrir en Microsoft](${web})` : "");
         const { data: a } = await supabase.from("messages").insert({
-          conversation_id: id, role: "assistant", content,
-          attachments: [{ url, type: file.type, name: file.name }],
+          conversation_id: id, role: "assistant", content: "",
+          attachments: [{ url, type: file.type, name: file.name, webUrl: web }],
         }).select().single();
         if (a) setMessages((m) => m.map(x => x.id === tempId ? (a as DBMsg) : x));
         sfx.receive();
@@ -454,9 +454,77 @@ function Welcome({ imageMode }: { imageMode: boolean }) {
   );
 }
 
+const documentFormats = {
+  pptx: { label: "Presentación de PowerPoint", icon: Presentation, tone: "text-document-powerpoint", surface: "bg-document-powerpoint/10" },
+  xlsx: { label: "Hoja de Excel", icon: FileSpreadsheet, tone: "text-document-excel", surface: "bg-document-excel/10" },
+  docx: { label: "Documento de Word", icon: FileText, tone: "text-document-word", surface: "bg-document-word/10" },
+  pdf: { label: "Documento PDF", icon: FileType2, tone: "text-document-pdf", surface: "bg-document-pdf/10" },
+} as const;
+
+function documentKind(a: { name?: string; type?: string }): keyof typeof documentFormats | null {
+  const ext = a.name?.split(".").pop()?.toLowerCase();
+  if (ext === "pptx" || ext === "xlsx" || ext === "docx" || ext === "pdf") return ext;
+  if (a.type?.includes("presentationml")) return "pptx";
+  if (a.type?.includes("spreadsheetml")) return "xlsx";
+  if (a.type?.includes("wordprocessingml")) return "docx";
+  if (a.type === "application/pdf") return "pdf";
+  return null;
+}
+
+async function downloadDocument(url: string, name: string) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("No se pudo descargar");
+    const objectUrl = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
+function DocumentAttachment({ attachment, legacyWebUrl }: { attachment: { url: string; name?: string; type?: string; webUrl?: string }; legacyWebUrl?: string }) {
+  const kind = documentKind(attachment);
+  if (!kind) return null;
+  const { label, icon: Icon, tone, surface } = documentFormats[kind];
+  const webUrl = attachment.webUrl || legacyWebUrl;
+  const name = attachment.name || `Documento.${kind}`;
+  return (
+    <div className="liquid-glass w-full max-w-sm rounded-lg p-3.5 flex items-center gap-3" aria-label={`${label}: ${name}`}>
+      <div className={`h-12 w-12 shrink-0 rounded-md flex items-center justify-center ${surface} ${tone}`}>
+        <Icon aria-hidden="true" className="h-6 w-6" strokeWidth={1.7} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className={`text-[11px] font-semibold ${tone}`}>{label}</div>
+        <div className="text-sm font-medium text-foreground break-words line-clamp-2" title={name}>{name}</div>
+        {webUrl && <span className="text-[11px] text-muted-foreground">Guardado en OneDrive</span>}
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {webUrl && (
+          <Button variant="ghost" size="icon" asChild className="h-9 w-9" title="Abrir en Microsoft">
+            <a href={webUrl} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${name} en Microsoft`}><ExternalLink /></a>
+          </Button>
+        )}
+        <Button variant="ghost" size="icon" className="h-9 w-9" title="Descargar archivo" aria-label={`Descargar ${name}`} onClick={() => downloadDocument(attachment.url, name)}>
+          <Download />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Bubble({ m }: { m: DBMsg }) {
   const isUser = m.role === "user";
   const hasAttachments = (m.attachments || []).length > 0;
+  const officeFile = !isUser && (m.attachments || []).some((a: any) => documentKind(a));
+  // Older generated files included their filename and OneDrive link in a second text bubble.
+  const legacyOfficeMessage = officeFile && /^Listo, aquí tienes tu (presentación de PowerPoint|archivo de Excel|documento de Word|PDF): \*\*/.test(m.content || "");
+  const legacyWebUrl = legacyOfficeMessage ? m.content.match(/\[abrir en Microsoft\]\((https?:\/\/[^)]+)\)/)?.[1] : undefined;
   if (!isUser && !m.content?.trim() && !hasAttachments) return null;
   return (
     <div className={`flex gap-3 animate-fade-up ${isUser ? "flex-row-reverse" : ""}`}>
@@ -469,18 +537,20 @@ function Bubble({ m }: { m: DBMsg }) {
           <OrionLogo size={32} />
         )}
       </div>
-      <div className={`max-w-[85%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1.5`}>
+      <div className={`min-w-0 max-w-[85%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1.5`}>
         {(m.attachments || []).map((a: any, i) => (
           a.type?.startsWith("image") ? (
             <GeneratedImage key={i} src={a.url} />
           ) : a.type?.startsWith("video") ? (
             <video key={i} src={a.url} controls playsInline className="rounded-2xl max-h-80 border border-border shadow-soft" />
-          ) : (
-            <a key={i} href={a.url} target="_blank" rel="noreferrer" download={a.name} className="liquid-glass rounded-2xl px-4 py-3 text-sm font-medium flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-transform">📄 Descargar {a.name}</a>
+           ) : documentKind(a) ? (
+             <DocumentAttachment key={i} attachment={a} legacyWebUrl={legacyWebUrl} />
+           ) : (
+             <a key={i} href={a.url} target="_blank" rel="noreferrer" download={a.name} className="liquid-glass rounded-lg px-4 py-3 text-sm font-medium flex items-center gap-2"><Paperclip className="w-4 h-4" />{a.name}</a>
           )
 
         ))}
-        {m.content && (
+         {m.content && !legacyOfficeMessage && (
           <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed
             ${isUser ? "btn-cosmic !rounded-2xl rounded-br-sm" : "liquid-glass rounded-bl-sm"}`}>
             {isUser ? (
@@ -492,7 +562,7 @@ function Bubble({ m }: { m: DBMsg }) {
             )}
           </div>
         )}
-        {!isUser && m.content && (
+         {!isUser && m.content && !legacyOfficeMessage && (
           <div className="flex gap-1 opacity-50 hover:opacity-100 transition">
             <button onClick={() => { navigator.clipboard.writeText(m.content); sfx.tap(); }} className="tap p-1 rounded hover:bg-accent">
               <Copy className="w-3 h-3" />
