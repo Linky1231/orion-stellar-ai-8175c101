@@ -215,15 +215,16 @@ export function Sidebar({
 
 function ProfileFooter() {
   const { user, profile, signOut } = useAuth();
+  const [avatarFailed, setAvatarFailed] = useState(false);
   if (!user) return null;
   const name = profile?.display_name || user.email?.split("@")[0] || "Cuenta";
   const initial = name.charAt(0).toUpperCase();
   return (
     <div className="shrink-0 border-t border-border px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center gap-3 bg-sidebar">
-      {profile?.avatar_url ? (
-        <img src={profile.avatar_url} alt={name} className="w-9 h-9 rounded-full object-cover" />
+      {profile?.avatar_url && !avatarFailed ? (
+        <img src={profile.avatar_url} alt={name} onError={() => setAvatarFailed(true)} className="w-9 h-9 shrink-0 rounded-full object-cover" />
       ) : (
-        <div className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-semibold">
+        <div className="w-9 h-9 shrink-0 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-semibold">
           {initial}
         </div>
       )}
