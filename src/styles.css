@@ -38,6 +38,10 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-document-powerpoint: var(--document-powerpoint);
+  --color-document-excel: var(--document-excel);
+  --color-document-word: var(--document-word);
+  --color-document-pdf: var(--document-pdf);
   --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
 }
 
@@ -71,6 +75,10 @@
   --sidebar-accent-foreground: oklch(0.25 0.05 280);
   --sidebar-border: oklch(0.92 0.008 270);
   --sidebar-ring: oklch(0.58 0.22 280);
+  --document-powerpoint: oklch(0.55 0.17 38);
+  --document-excel: oklch(0.48 0.14 155);
+  --document-word: oklch(0.50 0.15 255);
+  --document-pdf: oklch(0.53 0.19 27);
 
   --gradient-orion: linear-gradient(135deg, oklch(0.62 0.22 260), oklch(0.65 0.24 300));
   --gradient-bg:
@@ -108,6 +116,10 @@
   --sidebar-accent: oklch(0.24 0.04 285);
   --sidebar-accent-foreground: oklch(0.97 0.005 270);
   --sidebar-border: oklch(1 0 0 / 0.08);
+  --document-powerpoint: oklch(0.76 0.15 45);
+  --document-excel: oklch(0.74 0.13 155);
+  --document-word: oklch(0.76 0.13 250);
+  --document-pdf: oklch(0.76 0.16 28);
 
   --gradient-bg:
     radial-gradient(ellipse 80% 60% at 20% 0%, oklch(0.45 0.22 290 / 0.40), transparent 60%),
