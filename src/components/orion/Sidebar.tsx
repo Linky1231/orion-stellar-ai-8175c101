@@ -92,11 +92,11 @@ export function Sidebar({
         />
       )}
       <aside
-        className={`fixed md:sticky top-0 left-0 h-screen w-[300px] z-50 liquid-glass rounded-none border-r border-border flex flex-col
+        className={`fixed md:sticky top-0 left-0 h-dvh max-h-dvh w-[min(300px,100vw)] shrink-0 z-50 liquid-glass rounded-none border-r border-border flex flex-col min-h-0
           transition-transform duration-300 ease-out
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
-        <div className="flex items-center justify-between px-4 py-4 border-b border-border">
+        <div className="flex shrink-0 items-center justify-between px-4 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <OrionLogo size={28} />
             <div>
@@ -109,7 +109,7 @@ export function Sidebar({
           </button>
         </div>
 
-        <div className="p-3 space-y-2">
+        <div className="shrink-0 p-3 space-y-2">
           <button
             onClick={() => { sfx.tap(); onNew(); }}
             className="w-full tap btn-cosmic flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium"
@@ -138,7 +138,7 @@ export function Sidebar({
 
 
 
-        <div className="px-3 pb-2">
+        <div className="shrink-0 px-3 pb-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
@@ -150,7 +150,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 pb-3">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
           <div className="px-2 py-1 flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Recientes</span>
             {convs.length > 0 && (
@@ -215,15 +215,16 @@ export function Sidebar({
 
 function ProfileFooter() {
   const { user, profile, signOut } = useAuth();
+  const [avatarFailed, setAvatarFailed] = useState(false);
   if (!user) return null;
   const name = profile?.display_name || user.email?.split("@")[0] || "Cuenta";
   const initial = name.charAt(0).toUpperCase();
   return (
-    <div className="mt-auto border-t border-border p-3 flex items-center gap-3">
-      {profile?.avatar_url ? (
-        <img src={profile.avatar_url} alt={name} className="w-9 h-9 rounded-full object-cover" />
+    <div className="shrink-0 border-t border-border px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center gap-3 bg-sidebar">
+      {profile?.avatar_url && !avatarFailed ? (
+        <img src={profile.avatar_url} alt={name} onError={() => setAvatarFailed(true)} className="w-9 h-9 shrink-0 rounded-full object-cover" />
       ) : (
-        <div className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-semibold">
+        <div className="w-9 h-9 shrink-0 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-semibold">
           {initial}
         </div>
       )}
