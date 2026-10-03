@@ -322,7 +322,7 @@ export function ChatApp() {
 
   return (
     <SpeechCtx.Provider value={{ speakingId, toggle: toggleSpeak }}>
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex h-dvh min-h-0 w-full overflow-hidden">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -335,9 +335,9 @@ export function ChatApp() {
         onCreateImage={() => { newConv(); setImageMode(true); }}
       />
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Header */}
-        <header className="liquid-glass border-b border-border px-4 py-3 flex items-center gap-3 rounded-none">
+        <header className="liquid-glass shrink-0 border-b border-border px-4 py-3 flex items-center gap-3 rounded-none">
           <button className="tap btn-glass p-2 rounded-xl md:hidden" onClick={() => { sfx.tap(); setSidebarOpen(true); }}>
             <Menu className="w-5 h-5" />
           </button>
@@ -356,7 +356,7 @@ export function ChatApp() {
 
 
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
           <div className="max-w-3xl mx-auto space-y-5">
             {messages.length === 0 && <Welcome imageMode={imageMode} />}
             {messages.map((m) => <Bubble key={m.id} m={m} />)}
@@ -368,7 +368,7 @@ export function ChatApp() {
         </div>
 
         {/* Composer */}
-        <div className="px-4 pb-4 pt-2">
+        <div className="shrink-0 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
           <div className="max-w-3xl mx-auto">
             {pending.length > 0 && (
               <div className="flex gap-2 mb-2 flex-wrap">
