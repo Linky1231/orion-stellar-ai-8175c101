@@ -273,7 +273,7 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
 
           {selectMode && (
-            <div className="px-3 py-2 border-b border-border bg-accent/30 flex items-center gap-2 relative">
+            <div className="px-3 py-2 border-b border-border bg-accent/30 flex items-center gap-2 relative animate-fade-up">
               <span className="text-xs text-muted-foreground">{selected.size} seleccionada{selected.size === 1 ? "" : "s"}</span>
               <button
                 disabled={selected.size === 0}
@@ -283,7 +283,7 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
                 <FolderInput className="w-3 h-3" /> Mover a…
               </button>
               {moveOpen && (
-                <div className="absolute top-full right-2 mt-1 z-10 w-56 bg-card border border-border rounded-xl shadow-soft p-1 max-h-72 overflow-y-auto">
+                <div className="absolute top-full right-2 mt-1 z-10 w-56 bg-card border border-border rounded-xl shadow-soft p-1 max-h-72 overflow-y-auto animate-panel-in">
                   <button onClick={() => moveSelectedTo(null)} className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg hover:bg-accent flex items-center gap-2">
                     <Folder className="w-3.5 h-3.5 text-muted-foreground" /> Sin carpeta
                   </button>
@@ -303,12 +303,13 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
           <div className="flex-1 overflow-y-auto p-2">
             {/* Folders grid */}
             {!activeFolder && visibleFolders.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {visibleFolders.map((f) => {
+              <div key={`${section}-folders`} className="grid grid-cols-2 gap-2 mb-3">
+                {visibleFolders.map((f, i) => {
                   const st = STATUS[f.status as keyof typeof STATUS] || STATUS.development;
                   const count = notes.filter((n) => n.folder_id === f.id).length;
                   return (
-                    <div key={f.id} className={`group relative ${st.bg} border border-border rounded-xl p-3 cursor-pointer hover:scale-[1.02] transition`}
+                    <div key={f.id} style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+                      className={`group relative ${st.bg} border border-border rounded-xl p-3 cursor-pointer hover-scale shadow-soft animate-soft-rise`}
                       onClick={() => { sfx.tap(); setActiveFolder(f); setActive(null); }}>
                       <div className="flex items-center gap-2">
                         <Folder className="w-5 h-5" style={{ color: f.color }} />
@@ -336,8 +337,8 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
             )}
 
             {/* Notes list */}
-            <div className="space-y-1">
-              {visibleNotes.map((n) => {
+            <div key={`${section}-${activeFolder?.id ?? "root"}-notes`} className="space-y-1">
+              {visibleNotes.map((n, i) => {
                 const isSel = selected.has(n.id);
                 return (
                   <div key={n.id}
@@ -346,7 +347,8 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
                       if (selectMode) toggleSelect(n.id);
                       else setActive(n);
                     }}
-                    className={`group cursor-pointer px-3 py-2 rounded-xl flex items-start gap-2 ${(!selectMode && active?.id === n.id) || isSel ? "bg-accent" : "hover:bg-accent/60"}`}>
+                    style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
+                    className={`group cursor-pointer px-3 py-2 rounded-xl flex items-start gap-2 animate-fade-up transition-smooth ${(!selectMode && active?.id === n.id) || isSel ? "bg-accent" : "hover:bg-accent/60 hover:translate-x-0.5"}`}>
                     {selectMode ? (
                       isSel ? <CheckSquare className="w-4 h-4 mt-0.5 text-primary shrink-0" /> : <Square className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
                     ) : (
@@ -397,7 +399,7 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
                   </div>
                   <button onClick={() => setAnalysis(null)} className="tap p-2 rounded-lg hover:bg-accent"><X className="w-4 h-4" /></button>
                 </div>
-                <div className="glass-strong rounded-2xl p-5 whitespace-pre-wrap text-sm leading-relaxed">
+                <div className="glass-strong rounded-2xl p-5 whitespace-pre-wrap text-sm leading-relaxed animate-panel-in">
                   {analysis}
                 </div>
               </div>
