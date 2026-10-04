@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-3.8-flash";
+const ENDPOINT = "https://api.profundoai.com/v1/chat/completions";
+const MODEL = "gpt-6-astra";
 
 type Msg = { role: string; content: any };
 
