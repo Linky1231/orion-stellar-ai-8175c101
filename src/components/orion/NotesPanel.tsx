@@ -405,7 +405,7 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
               </div>
             </div>
           ) : active ? (
-            <>
+            <div key={active.id} className="flex-1 flex flex-col min-h-0 animate-panel-in">
               <div className="p-3 border-b border-border flex items-center gap-2 flex-wrap">
                 <button onClick={() => setActive(null)} className="md:hidden tap p-1 rounded-lg hover:bg-accent"><ArrowLeft className="w-4 h-4" /></button>
                 <span className="text-xs text-muted-foreground">Estado:</span>
@@ -440,7 +440,7 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
                   className="text-2xl font-semibold bg-transparent outline-none border-b border-border pb-2"
                 />
                 {active.ai_summary && (
-                  <div className="text-xs text-muted-foreground italic flex items-start gap-1.5">
+                  <div className="text-xs text-muted-foreground italic flex items-start gap-1.5 animate-fade-up">
                     <Sparkles className="w-3 h-3 mt-0.5 text-primary shrink-0" />
                     {active.ai_summary}
                   </div>
@@ -452,7 +452,7 @@ export function NotesPanel({ open, onClose }: { open: boolean; onClose: () => vo
                   className="flex-1 bg-transparent outline-none resize-none text-sm leading-relaxed min-h-[300px]"
                 />
               </div>
-            </>
+            </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-sm gap-3 p-8 text-center">
               <OrionLogo size={64} />
