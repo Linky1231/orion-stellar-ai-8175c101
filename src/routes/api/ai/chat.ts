@@ -29,8 +29,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
         const incoming = body.messages || [];
 
-        const apiKey = process.env["LOVABLE_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de Lovable AI." }, { status: 500 });
+        const apiKey = process.env["PROFUNDO_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de Profundo." }, { status: 500 });
 
         // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
         const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
@@ -54,16 +54,15 @@ export const Route = createFileRoute("/api/ai/chat")({
           upstream = await fetch(ENDPOINT, {
             method: "POST",
             headers: {
-              "Lovable-API-Key": apiKey,
-              "X-Lovable-AIG-SDK": "fetch",
+              Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
               Accept: "text/event-stream",
             },
             body: JSON.stringify({
               model: MODEL,
               messages,
-              temperature: 0.7,
-                            max_tokens: 8192,
+              reasoning_effort: "low",
+              max_completion_tokens: 8192,
               stream: true,
             }),
           });
