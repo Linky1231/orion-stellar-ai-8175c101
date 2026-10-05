@@ -136,6 +136,39 @@ export async function runPhoneTask(
   };
   const GO = `Sigue con la tarea sin detenerte ni pedir confirmación. Objetivo: ${prompt}. Continúa con el siguiente paso.`;
 
+  // Orión orquesta: mira la última captura y dicta la siguiente acción exacta (qué tocar, qué escribir).
+  let thinking = false;
+  let lastOrder = "";
+  let analyzedShot: string | null = null;
+  const orchestrate = async () => {
+    if (thinking || !sessionId || !lastShot || lastShot === analyzedShot) return;
+    thinking = true;
+    analyzedShot = lastShot;
+    try {
+      const { visionStream } = await import("@/lib/vision");
+      let out = "";
+      await visionStream(
+        `Eres Orión, supervisora de un agente que controla un teléfono Android. Objetivo: "${prompt}".\n` +
+          `Últimos pasos del agente:\n${steps.slice(-5).join("\n")}\n` +
+          `Mira la pantalla actual y dicta la SIGUIENTE acción exacta en una sola orden imperativa en español ` +
+          `(qué tocar y dónde, o el texto EXACTO a escribir entre comillas). Máximo 25 palabras. ` +
+          `Si el objetivo ya está cumplido responde solo: LISTO. Sin explicaciones.`,
+        [analyzedShot],
+        (d) => (out += d),
+      );
+      const order = out.trim().split("\n").filter(Boolean).pop()?.slice(0, 220) || "";
+      if (!order || /^LISTO\b/i.test(order) || order === lastOrder) return;
+      lastOrder = order;
+      steps.push(`🧭 Orión ordena: ${order}`);
+      report("running", `Orión: ${order}`);
+      await tool("phone_task_message", { session_id: sessionId, task_id: currentTask, text: order }).catch(() => {});
+    } catch (e) {
+      console.warn("orchestrate failed", e);
+    } finally {
+      thinking = false;
+    }
+  };
+
   while (Date.now() < deadline) {
     if (signal?.aborted) {
       await tool("phone_task_cancel", { device_id: device.device_id, task_id: currentTask, reason: "user_stop" }).catch(
@@ -163,6 +196,7 @@ export async function runPhoneTask(
       if (!newSteps.some((s) => Number.isFinite(Number(s.step_number ?? s.index)))) sinceStep += newSteps.length;
       lastActivity = Date.now();
       report("running", steps[steps.length - 1] || "Trabajando en tu teléfono…");
+      void orchestrate();
     }
 
     const status = mon?.status || mon?.task?.status;
