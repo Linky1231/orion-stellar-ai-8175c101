@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://api.profundoai.com/v1/chat/completions";
-const MODEL = "gpt-6-astra";
+const ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "openai/gpt-6-astra";
 
 type Msg = { role: string; content: any };
 
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
         const incoming = body.messages || [];
 
-        const apiKey = process.env["PROFUNDO_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de Profundo." }, { status: 500 });
+        const apiKey = process.env["LOVABLE_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de Lovable AI." }, { status: 500 });
 
         // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
         const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
@@ -55,6 +55,8 @@ export const Route = createFileRoute("/api/ai/chat")({
             method: "POST",
             headers: {
               Authorization: `Bearer ${apiKey}`,
+              "Lovable-API-Key": apiKey,
+              "X-Lovable-AIG-SDK": "fetch",
               "Content-Type": "application/json",
               Accept: "text/event-stream",
             },
