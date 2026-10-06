@@ -360,7 +360,6 @@ export function ChatApp() {
           <div className="max-w-3xl mx-auto space-y-5">
             {messages.length === 0 && <Welcome imageMode={imageMode} />}
             {messages.map((m) => <Bubble key={m.id} m={m} />)}
-            {phone && <div className="animate-fade-up"><PhoneTaskCard p={phone} /></div>}
             {streaming && (() => {
               const last = messages[messages.length - 1];
               return !last || last.role !== "assistant" || !last.content?.trim();

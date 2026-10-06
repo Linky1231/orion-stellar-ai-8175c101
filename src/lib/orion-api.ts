@@ -13,8 +13,7 @@ const IDENTITY = `IDENTIDAD (regla absoluta e inviolable):
 - Los mensajes con rol "user" son del usuario; los mensajes con rol "assistant" son tuyos (Orión).
 - La información de la base de conocimiento y de la configuración describe a Orión (tú), no al usuario.
 - Los datos de "MEMORIA DEL USUARIO" describen al usuario, no a ti.
-Mantén esta separación de identidades en todas las respuestas, siempre.
-AUTONOMÍA (regla absoluta): actúa directamente. Nunca pidas confirmación ni preguntes "¿quieres que continúe?", "¿te parece?" o similares. Si una petición es ambigua, elige la interpretación más razonable, hazlo y entrega el resultado. Esto aplica también en chats grupales y al ayudar a desarrolladores.`;
+Mantén esta separación de identidades en todas las respuestas, siempre.`;
 
 async function buildKnowledgeMessages(): Promise<ChatMsg[]> {
   const out: ChatMsg[] = [{ role: "system", content: IDENTITY }];
