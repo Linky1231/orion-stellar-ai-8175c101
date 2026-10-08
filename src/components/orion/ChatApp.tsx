@@ -312,13 +312,14 @@ export function ChatApp() {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "es-ES";
+    u.rate = 1.15;
     u.onend = () => setSpeakingId((cur) => (cur === id ? null : cur));
     u.onerror = () => setSpeakingId((cur) => (cur === id ? null : cur));
     window.speechSynthesis.speak(u);
     setSpeakingId(id);
   }, [speakingId]);
 
-  useEffect(() => () => window.speechSynthesis.cancel(), []);
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
   return (
     <SpeechCtx.Provider value={{ speakingId, toggle: toggleSpeak }}>

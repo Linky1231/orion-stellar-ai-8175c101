@@ -38,7 +38,7 @@ export async function aiStream(
     return visionStream([ctx, q].filter(Boolean).join("\n\n"), media, onDelta, signal);
   }
 
-  const res = await fetch("/api/ai/chat", {
+  const send = () => fetch("/api/ai/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -49,7 +49,31 @@ export async function aiStream(
     signal,
   });
 
-  if (!res.ok || !res.body) throw new Error(`Error del proveedor (${res.status})`);
+  let res = await send();
+  // Recover once from transient provider outages, before any text is streamed.
+  if (res.status >= 500 && res.status <= 599) {
+    await res.body?.cancel();
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new DOMException("Solicitud cancelada", "AbortError"));
+      };
+      const timer = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, 1500);
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener("abort", onAbort, { once: true });
+    });
+    res = await send();
+  }
+  if (!res.ok || !res.body) {
+    const detail = await res.json().catch(() => null);
+    const message = res.status >= 500
+      ? "Profundo está temporalmente fuera de servicio. No se perdió tu pregunta; inténtalo de nuevo en unos minutos."
+      : detail?.error || `No se pudo completar la respuesta (${res.status}).`;
+    throw new Error(message);
+  }
 
 
   const reader = res.body.getReader();
