@@ -70,30 +70,13 @@ export const Route = createFileRoute("/api/ai/chat")({
           return Response.json({ error: "No se pudo contactar al proveedor." }, { status: 502 });
         }
 
-        // Respaldo automático: si Profundo falla, se usa Gemini vía Lovable AI.
-        const lovableKey = process.env["LOVABLE_API_KEY"];
-        if ((!upstream.ok || !upstream.body) && lovableKey) {
-          await upstream.body?.cancel().catch(() => {});
-          try {
-            upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Lovable-API-Key": lovableKey,
-                "X-Lovable-AIG-SDK": "fetch",
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages, stream: true }),
-            });
-          } catch {
-            return Response.json({ error: "No se pudo contactar al proveedor." }, { status: 502 });
-          }
-        }
+        // Solo Profundo: sin respaldo de otros proveedores.
 
         if (!upstream.ok || !upstream.body) {
           const detail = await upstream.text().catch(() => "");
           return Response.json(
-            { error: upstream.status===402?"Sin créditos de IA. Recarga en Ajustes → Planes y créditos.":upstream.status===429?"Demasiadas solicitudes, intenta en unos segundos.":`El proveedor no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
-            { status: upstream.status===402||upstream.status===429?upstream.status:502 },
+            { error: upstream.status===401?"La clave de Profundo no es válida. Revísala en tu cuenta de profundoai.com.":upstream.status===402?"Sin saldo en Profundo. Recarga tu cuenta en profundoai.com.":upstream.status===429?"Demasiadas solicitudes, intenta en unos segundos.":`Profundo no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
+            { status: upstream.status===401||upstream.status===402||upstream.status===429?upstream.status:502 },
           );
         }
 
