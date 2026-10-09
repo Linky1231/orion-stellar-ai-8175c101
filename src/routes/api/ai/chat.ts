@@ -70,6 +70,25 @@ export const Route = createFileRoute("/api/ai/chat")({
           return Response.json({ error: "No se pudo contactar al proveedor." }, { status: 502 });
         }
 
+        // Respaldo automático: si Profundo falla, se usa Gemini vía Lovable AI.
+        const lovableKey = process.env["LOVABLE_API_KEY"];
+        if ((!upstream.ok || !upstream.body) && lovableKey) {
+          await upstream.body?.cancel().catch(() => {});
+          try {
+            upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Lovable-API-Key": lovableKey,
+                "X-Lovable-AIG-SDK": "fetch",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages, stream: true }),
+            });
+          } catch {
+            return Response.json({ error: "No se pudo contactar al proveedor." }, { status: 502 });
+          }
+        }
+
         if (!upstream.ok || !upstream.body) {
           const detail = await upstream.text().catch(() => "");
           return Response.json(
