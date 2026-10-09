@@ -75,8 +75,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         if (!upstream.ok || !upstream.body) {
           const detail = await upstream.text().catch(() => "");
           return Response.json(
-            { error: upstream.status===402?"Sin créditos de IA. Recarga en Ajustes → Planes y créditos.":upstream.status===429?"Demasiadas solicitudes, intenta en unos segundos.":`El proveedor no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
-            { status: upstream.status===402||upstream.status===429?upstream.status:502 },
+            { error: upstream.status===401?"La clave de Profundo no es válida. Revísala en tu cuenta de profundoai.com.":upstream.status===402?"Sin saldo en Profundo. Recarga tu cuenta en profundoai.com.":upstream.status===429?"Demasiadas solicitudes, intenta en unos segundos.":`Profundo no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
+            { status: upstream.status===401||upstream.status===402||upstream.status===429?upstream.status:502 },
           );
         }
 
