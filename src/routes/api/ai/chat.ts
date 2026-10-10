@@ -44,11 +44,29 @@ export const Route = createFileRoute("/api/ai/chat")({
           .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: flatten(m.content) }))
           .filter((m) => m.content);
 
-        // Groq (plan gratuito) limita ~7000 tokens por minuto: recortamos memoria e historial.
+        // Groq (plan gratuito) limita ~7000 tokens por minuto: recortamos por
+        // entradas completas (nunca a mitad de una entrada) para no perder datos.
         const SYS_MAX = 12000;
         const CONVO_MAX = 6000;
-        let sys = systems.join("\n\n");
-        if (sys.length > SYS_MAX) sys = sys.slice(0, SYS_MAX / 2) + "\n…\n" + sys.slice(-SYS_MAX / 2);
+        // La primera entrada es la identidad: siempre se conserva. Del resto se
+        // descartan las más antiguas hasta caber, manteniendo cada entrada íntegra.
+        const kept: string[] = [];
+        let sysUsed = 0;
+        const identity = systems[0] ?? "";
+        const rest = systems.slice(1);
+        for (let i = rest.length - 1; i >= 0; i--) {
+          const entry = rest[i];
+          if (sysUsed + entry.length > SYS_MAX - identity.length && kept.length) continue;
+          if (sysUsed + entry.length > SYS_MAX - identity.length) {
+            // Ni la entrada más reciente cabe sola: se conserva recortada al final.
+            kept.unshift(entry.slice(0, Math.max(SYS_MAX - identity.length - sysUsed, 500)));
+            sysUsed = SYS_MAX - identity.length;
+            break;
+          }
+          kept.unshift(entry);
+          sysUsed += entry.length;
+        }
+        const sys = [identity, ...kept].filter(Boolean).join("\n\n");
         const trimmed: { role: string; content: string }[] = [];
         let used = 0;
         for (let i = convo.length - 1; i >= 0; i--) {
