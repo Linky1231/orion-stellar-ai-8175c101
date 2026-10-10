@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://api.profundoai.com/v1/chat/completions";
-const MODEL = "gpt-6-astra";
+const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "qwen/qwen3.8-27b";
 
 type Msg = { role: string; content: any };
 
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
         const incoming = body.messages || [];
 
-        const apiKey = process.env["PROFUNDO_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de Profundo." }, { status: 500 });
+        const apiKey = process.env["GROQ_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de Groq." }, { status: 500 });
 
         // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
         const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
@@ -61,8 +61,7 @@ export const Route = createFileRoute("/api/ai/chat")({
             body: JSON.stringify({
               model: MODEL,
               messages,
-              reasoning_effort: "low",
-              max_completion_tokens: 8192,
+              max_tokens: 8192,
               stream: true,
             }),
           });
@@ -70,13 +69,11 @@ export const Route = createFileRoute("/api/ai/chat")({
           return Response.json({ error: "No se pudo contactar al proveedor." }, { status: 502 });
         }
 
-        // Solo Profundo: sin respaldo de otros proveedores.
-
         if (!upstream.ok || !upstream.body) {
           const detail = await upstream.text().catch(() => "");
           return Response.json(
-            { error: upstream.status===401?"La clave de Profundo no es válida. Revísala en tu cuenta de profundoai.com.":upstream.status===402?"Sin saldo en Profundo. Recarga tu cuenta en profundoai.com.":upstream.status===429?"Demasiadas solicitudes, intenta en unos segundos.":`Profundo no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
-            { status: upstream.status===401||upstream.status===402||upstream.status===429?upstream.status:502 },
+            { error: upstream.status===401?"La clave de Groq no es válida. Revísala en console.groq.com.":upstream.status===429?"Límite de Groq alcanzado, intenta en unos segundos.":`Groq no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
+            { status: upstream.status===401||upstream.status===429?upstream.status:502 },
           );
         }
 
