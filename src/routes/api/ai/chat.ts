@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://api.profundoai.com/v1/chat/completions";
-const MODEL = "gpt-6-astra";
+const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "qwen/qwen3.8-27b";
 
 type Msg = { role: string; content: any };
 
