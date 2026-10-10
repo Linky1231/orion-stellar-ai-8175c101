@@ -29,8 +29,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
         const incoming = body.messages || [];
 
-        const apiKey = process.env["PROFUNDO_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de Profundo." }, { status: 500 });
+        const apiKey = process.env["GROQ_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de Groq." }, { status: 500 });
 
         // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
         const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
@@ -61,8 +61,7 @@ export const Route = createFileRoute("/api/ai/chat")({
             body: JSON.stringify({
               model: MODEL,
               messages,
-              reasoning_effort: "low",
-              max_completion_tokens: 8192,
+              max_tokens: 8192,
               stream: true,
             }),
           });
