@@ -44,10 +44,23 @@ export const Route = createFileRoute("/api/ai/chat")({
           .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: flatten(m.content) }))
           .filter((m) => m.content);
 
-        const messages = [
-          ...(systems.length ? [{ role: "system", content: systems.join("\n\n") }] : []),
-          ...convo,
-        ];
+        // Groq (plan gratuito) limita ~7000 tokens por minuto: recortamos memoria e historial.
+        const SYS_MAX = 12000;
+        const CONVO_MAX = 6000;
+        let sys = systems.join("\n\n");
+        if (sys.length > SYS_MAX) sys = sys.slice(0, SYS_MAX / 2) + "\n…\n" + sys.slice(-SYS_MAX / 2);
+        const trimmed: { role: string; content: string }[] = [];
+        let used = 0;
+        for (let i = convo.length - 1; i >= 0; i--) {
+          let c = convo[i].content;
+          const left = CONVO_MAX - used;
+          if (left <= 200 && trimmed.length) break;
+          if (c.length > left) c = c.slice(-Math.max(left, 200));
+          trimmed.unshift({ role: convo[i].role, content: c });
+          used += c.length;
+        }
+        if (trimmed[0]?.role === "assistant") trimmed.shift();
+        const messages = [...(sys ? [{ role: "system", content: sys }] : []), ...trimmed];
 
         let upstream: Response;
         try {
