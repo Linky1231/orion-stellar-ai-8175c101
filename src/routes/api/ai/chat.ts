@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://api.profundoai.com/v1/chat/completions";
-const MODEL = "gpt-6-astra";
+const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "qwen/qwen3.8-27b";
 
 type Msg = { role: string; content: any };
 
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
         const incoming = body.messages || [];
 
-        const apiKey = process.env["PROFUNDO_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de Profundo." }, { status: 500 });
+        const apiKey = process.env["GROQ_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de GroqCloud." }, { status: 500 });
 
         // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
         const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
