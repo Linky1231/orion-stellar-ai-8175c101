@@ -20,7 +20,7 @@ CAPACIDADES REALES DE ORIÓN (las tienes de verdad, no las niegues):
 - También puedes: generar imágenes, buscar en internet, crear documentos (PowerPoint, Excel, Word, PDF), ver imágenes y videos que te envíen, y recordar todo lo que ves y haces en la pantalla del dispositivo.
 - Si el usuario pregunta cómo usar el control del dispositivo, explícale que solo tiene que pedírtelo en el chat (por ejemplo: "abre WhatsApp en mi teléfono" o "qué hay en mi pantalla") y que necesita la app AGI activa en su dispositivo.`;
 
-async function buildKnowledgeMessages(): Promise<ChatMsg[]> {
+async function buildKnowledgeMessages(lastUser = ""): Promise<ChatMsg[]> {
   const out: ChatMsg[] = [{ role: "system", content: IDENTITY }];
   try {
     const [cfg, kb, mem, scripts] = await Promise.all([
@@ -60,28 +60,34 @@ async function buildKnowledgeMessages(): Promise<ChatMsg[]> {
       });
     }
 
-    const scr = ((scripts.data || []) as any[]).filter((s) => s?.code);
-    if (scr.length) {
-      out.push({
-        role: "system",
-        content:
-          "SCRIPTS DE BUILDA GUARDADOS EN MEMORIA (" +
-          scr.length +
-          " scripts). Cuando el usuario pida un script de Builda, USA SIEMPRE estos scripts como base y entrégalos completos, adaptándolos si hace falta. No inventes una sintaxis distinta:\n\n" +
-          scr
-            .map(
-              (s, i) =>
-                `### Script ${i + 1}: ${s.title}\n${s.description ? `Descripción: ${s.description}\n` : ""}\`\`\`\n${s.code}\n\`\`\``,
-            )
-            .join("\n\n"),
-      });
-    }
-
+    // La memoria del usuario va antes que los scripts para que nunca se pierda.
     const facts = ((mem.data || []) as any[]).map((m) => String(m.content)).filter(Boolean);
     if (facts.length) {
       out.push({
         role: "system",
         content: "MEMORIA DEL USUARIO (hechos sobre el USUARIO, no sobre ti):\n" + facts.map((f) => `- ${f}`).join("\n"),
+      });
+    }
+
+    // Los scripts de Builda son muy largos: siempre se envía el índice y el
+    // código completo solo de los que coinciden con lo que pide el usuario.
+    const scr = ((scripts.data || []) as any[]).filter((s) => s?.code);
+    if (scr.length) {
+      const q = (lastUser || "").toLowerCase();
+      const wantsScript = /script|c[oó]digo|builda/.test(q);
+      const matches = wantsScript
+        ? scr.filter((s) => String(s.title || "").toLowerCase().split(/\s+/).some((w: string) => w.length > 3 && q.includes(w))).slice(0, 2)
+        : [];
+      const picked = wantsScript && !matches.length ? scr.slice(0, 1) : matches;
+      out.push({
+        role: "system",
+        content:
+          "SCRIPTS DE BUILDA GUARDADOS EN MEMORIA (" + scr.length + "): " +
+          scr.map((s, i) => `${i + 1}. ${s.title}`).join("; ") +
+          (picked.length
+            ? "\nUsa estos scripts como base y entrégalos completos, adaptándolos si hace falta; no inventes otra sintaxis:\n\n" +
+              picked.map((s) => `### ${s.title}\n${s.description ? `Descripción: ${s.description}\n` : ""}\`\`\`\n${s.code}\n\`\`\``).join("\n\n")
+            : ""),
       });
     }
   } catch (e) {
@@ -92,7 +98,9 @@ async function buildKnowledgeMessages(): Promise<ChatMsg[]> {
 
 // ---- Texto ----
 export async function streamChat(messages: ChatMsg[], onDelta: (s: string) => void, signal?: AbortSignal) {
-  const ctx = await buildKnowledgeMessages();
+  const last = [...messages].reverse().find((m) => m.role === "user");
+  const lastText = typeof last?.content === "string" ? last.content : JSON.stringify(last?.content ?? "");
+  const ctx = await buildKnowledgeMessages(lastText);
   return aiStream([...ctx, ...messages], onDelta, signal);
 }
 
@@ -113,7 +121,7 @@ export async function webSearch(query: string): Promise<SearchHit[]> {
 }
 
 export async function streamSearch(query: string, messages: ChatMsg[], onDelta: (s: string) => void, signal?: AbortSignal) {
-  const [ctx, hits] = await Promise.all([buildKnowledgeMessages(), webSearch(query)]);
+  const [ctx, hits] = await Promise.all([buildKnowledgeMessages(query), webSearch(query)]);
   const resultados = hits.length
     ? hits
         .map((h, i) => `[${i + 1}] ${h.title}\n${h.snippet}\nFuente: ${h.url}`)
