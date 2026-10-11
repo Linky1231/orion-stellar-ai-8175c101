@@ -42,7 +42,13 @@ async function buildKnowledgeMessages(): Promise<ChatMsg[]> {
       });
     }
 
-    const entries = (kb.data || []) as { title: string; content: string }[];
+    // TEMPORAL: solo se envía la PRIMERA entrada de conocimiento (Builda - Motor
+    // móvil) para que quepa toda la información importante en el límite de tokens
+    // de Groq. Las demás entradas siguen guardadas; pon false aquí para volver a
+    // enviarlas todas.
+    const KNOWLEDGE_ONLY_FIRST = true;
+    const allEntries = (kb.data || []) as { title: string; content: string }[];
+    const entries = KNOWLEDGE_ONLY_FIRST ? allEntries.slice(0, 1) : allEntries;
     if (entries.length) {
       out.push({
         role: "system",
