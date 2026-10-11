@@ -44,29 +44,37 @@ export const Route = createFileRoute("/api/ai/chat")({
           .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: flatten(m.content) }))
           .filter((m) => m.content);
 
-        // Groq (plan gratuito) limita los tokens por minuto: se recorta más
-        // agresivo, siempre por entradas completas para no perder datos.
-        const SYS_MAX = 12000;
-        const CONVO_MAX = 4000;
-        // La primera entrada es la identidad: siempre se conserva. Del resto se
-        // descartan las más antiguas hasta caber, manteniendo cada entrada íntegra.
+        // Groq (plan gratuito) limita los tokens por minuto. Las entradas llegan
+        // ordenadas por prioridad (identidad, instrucciones, conocimiento,
+        // memoria del usuario, scripts) y se incluyen en ese orden. Si una no
+        // cabe entera, se conservan sus líneas completas más recientes.
+        const SYS_MAX = 20000;
+        const CONVO_MAX = 3000;
         const kept: string[] = [];
         let sysUsed = 0;
-        const identity = systems[0] ?? "";
-        const rest = systems.slice(1);
-        for (let i = rest.length - 1; i >= 0; i--) {
-          const entry = rest[i];
-          if (sysUsed + entry.length > SYS_MAX - identity.length && kept.length) continue;
-          if (sysUsed + entry.length > SYS_MAX - identity.length) {
-            // Ni la entrada más reciente cabe sola: se conserva recortada al final.
-            kept.unshift(entry.slice(0, Math.max(SYS_MAX - identity.length - sysUsed, 500)));
-            sysUsed = SYS_MAX - identity.length;
-            break;
+        for (const entry of systems) {
+          const left = SYS_MAX - sysUsed;
+          if (left < 300) break;
+          if (entry.length <= left) {
+            kept.push(entry);
+            sysUsed += entry.length + 2;
+            continue;
           }
-          kept.unshift(entry);
-          sysUsed += entry.length;
+          const lines = entry.split("\n");
+          const head = lines.shift() || "";
+          const tail: string[] = [];
+          let size = head.length + 1;
+          for (let i = lines.length - 1; i >= 0; i--) {
+            if (size + lines[i].length + 1 > left) break;
+            tail.unshift(lines[i]);
+            size += lines[i].length + 1;
+          }
+          if (tail.length) {
+            kept.push([head, ...tail].join("\n"));
+            sysUsed += size + 2;
+          }
         }
-        const sys = [identity, ...kept].filter(Boolean).join("\n\n");
+        const sys = [...kept].filter(Boolean).join("\n\n");
         const trimmed: { role: string; content: string }[] = [];
         let used = 0;
         for (let i = convo.length - 1; i >= 0; i--) {
