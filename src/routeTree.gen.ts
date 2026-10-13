@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiAgiMcpRouteImport } from './routes/api/agi/mcp'
 import { Route as ApiAiChatRouteImport } from './routes/api/ai/chat'
 import { Route as ApiAiImageRouteImport } from './routes/api/ai/image'
 import { Route as ApiAiSearchRouteImport } from './routes/api/ai/search'
@@ -21,11 +20,6 @@ import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAgiMcpRoute = ApiAgiMcpRouteImport.update({
-  id: '/api/agi/mcp',
-  path: '/api/agi/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiChatRoute = ApiAiChatRouteImport.update({
@@ -62,7 +56,6 @@ const ApiPublicPaymentsWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/agi/mcp': typeof ApiAgiMcpRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
@@ -72,7 +65,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/agi/mcp': typeof ApiAgiMcpRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
@@ -83,7 +75,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/agi/mcp': typeof ApiAgiMcpRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
@@ -95,7 +86,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/api/agi/mcp'
     | '/api/ai/chat'
     | '/api/ai/image'
     | '/api/ai/search'
@@ -105,7 +95,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/api/agi/mcp'
     | '/api/ai/chat'
     | '/api/ai/image'
     | '/api/ai/search'
@@ -115,7 +104,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/api/agi/mcp'
     | '/api/ai/chat'
     | '/api/ai/image'
     | '/api/ai/search'
@@ -126,7 +114,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiAgiMcpRoute: typeof ApiAgiMcpRoute
   ApiAiChatRoute: typeof ApiAiChatRoute
   ApiAiImageRoute: typeof ApiAiImageRoute
   ApiAiSearchRoute: typeof ApiAiSearchRoute
@@ -142,13 +129,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/agi/mcp': {
-      id: '/api/agi/mcp'
-      path: '/api/agi/mcp'
-      fullPath: '/api/agi/mcp'
-      preLoaderRoute: typeof ApiAgiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/chat': {
@@ -198,7 +178,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiAgiMcpRoute: ApiAgiMcpRoute,
   ApiAiChatRoute: ApiAiChatRoute,
   ApiAiImageRoute: ApiAiImageRoute,
   ApiAiSearchRoute: ApiAiSearchRoute,
