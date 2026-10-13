@@ -70,7 +70,7 @@ export async function aiStream(
   if (!res.ok || !res.body) {
     const detail = await res.json().catch(() => null);
     const message = res.status >= 500
-      ? "GroqCloud está temporalmente fuera de servicio. No se perdió tu pregunta; inténtalo de nuevo en unos minutos."
+      ? "El servicio de IA está temporalmente fuera de servicio. No se perdió tu pregunta; inténtalo de nuevo en unos minutos."
       : detail?.error || `No se pudo completar la respuesta (${res.status}).`;
     throw new Error(message);
   }
