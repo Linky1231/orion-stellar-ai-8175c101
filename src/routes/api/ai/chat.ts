@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "qwen/qwen3.8-27b";
+const ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "openai/gpt-6-astra";
 
 type Msg = { role: string; content: any };
 
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/api/ai/chat")({
         const body = (await request.json().catch(() => ({}))) as { messages?: Msg[]; mode?: string };
         const incoming = body.messages || [];
 
-        const apiKey = process.env["GROQ_API_KEY"];
-        if (!apiKey) return Response.json({ error: "Falta la clave de GroqCloud." }, { status: 500 });
+        const apiKey = process.env["LOVABLE_API_KEY"];
+        if (!apiKey) return Response.json({ error: "Falta la clave de Lovable AI." }, { status: 500 });
 
         // Toda la memoria/conocimiento va completa: los system se unen en uno solo.
         const systems = incoming.filter((m) => m.role === "system").map((m) => flatten(m.content));
@@ -44,12 +44,11 @@ export const Route = createFileRoute("/api/ai/chat")({
           .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: flatten(m.content) }))
           .filter((m) => m.content);
 
-        // Groq (plan gratuito) limita los tokens por minuto. Las entradas llegan
-        // ordenadas por prioridad (identidad, instrucciones, conocimiento,
-        // memoria del usuario, scripts) y se incluyen en ese orden. Si una no
-        // cabe entera, se conservan sus líneas completas más recientes.
-        const SYS_MAX = 20000;
-        const CONVO_MAX = 3000;
+        // Lovable AI no tiene el límite estricto de Groq: la memoria y el
+        // conocimiento van completos, en orden de prioridad (identidad,
+        // instrucciones, conocimiento, memoria del usuario, scripts).
+        const SYS_MAX = 60000;
+        const CONVO_MAX = 12000;
         const kept: string[] = [];
         let sysUsed = 0;
         for (const entry of systems) {
@@ -100,7 +99,8 @@ export const Route = createFileRoute("/api/ai/chat")({
             body: JSON.stringify({
               model: MODEL,
               messages,
-              max_completion_tokens: 2048,
+              reasoning_effort: "low",
+              max_completion_tokens: 4096,
               stream: true,
             }),
           });
@@ -111,7 +111,7 @@ export const Route = createFileRoute("/api/ai/chat")({
         if (!upstream.ok || !upstream.body) {
           const detail = await upstream.text().catch(() => "");
           return Response.json(
-            { error: upstream.status===401?"La clave de GroqCloud no es válida. Revísala en console.groq.com.":upstream.status===429?"Límite de GroqCloud alcanzado, intenta en unos segundos.":`GroqCloud no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
+            { error: upstream.status===401?"La clave de Lovable AI no es válida.":upstream.status===402?"Sin créditos de IA en Lovable. Recarga en Ajustes → Planes y créditos.":upstream.status===429?"Límite de velocidad alcanzado, intenta en unos segundos.":`El servicio de IA no respondió (${upstream.status}). ${detail.slice(0, 200)}` },
             { status: upstream.status===401||upstream.status===429?upstream.status:502 },
           );
         }
