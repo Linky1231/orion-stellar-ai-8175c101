@@ -1,13 +1,15 @@
 {
-  "title": "Your game",
-  "tagline": "One short sentence about the game.",
-  "desc": "What players should know before playing.",
-  "category": "",
+  "title": "Orión Estellar",
+  "tagline": "Tu asistente de IA con personalidad propia para crear videojuegos.",
+  "desc": "Chatea con Orión: programación, arte, diseño de niveles, notas, imágenes y documentos. Requiere iniciar sesión.",
+  "category": "other",
   "engine": "h5",
-  "tags": ["h5"],
-  "orientation": "landscape",
-  "minChromeMajor": 0,
-  "minIOSMajor": 0,
+  "tags": [
+    "h5"
+  ],
+  "orientation": "portrait",
+  "minChromeMajor": 88,
+  "minIOSMajor": 15,
   "coverKind": "palette",
   "coverPalette": "ember",
   "buildPrefix": "",
