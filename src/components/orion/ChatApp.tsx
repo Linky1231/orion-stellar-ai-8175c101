@@ -86,12 +86,15 @@ export function ChatApp() {
 
   useEffect(() => {
     if (!convId) return;
-    const ch = supabase
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+    ch = supabase
       .channel(`msg-${convId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` },
         (p) => setMessages((m) => (m.some(x => x.id === (p.new as any).id) ? m : [...m, p.new as DBMsg])))
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    } catch { /* live updates unavailable (e.g. inside Builda) */ }
+    return () => { if (ch) void supabase.removeChannel(ch); };
   }, [convId]);
 
   async function ensureConv(firstText: string): Promise<string> {
