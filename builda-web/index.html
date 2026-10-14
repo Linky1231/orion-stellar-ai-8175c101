@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es" class="dark">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -8,7 +8,8 @@
     <script>try{window.Builda&&window.Builda.runtime&&typeof window.Builda.runtime.ready==="function"&&window.Builda.runtime.ready();}catch(e){}</script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="boot" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui;color:#555">Cargando Orión…</div></div>
+    <script>window.addEventListener("error",function(e){var b=document.getElementById("boot")||document.body;b.insertAdjacentHTML("beforeend","<pre style=\"white-space:pre-wrap;font-size:11px;color:#b00;padding:12px\">"+String(e.message||e)+"</pre>")});window.addEventListener("unhandledrejection",function(e){document.body.insertAdjacentHTML("beforeend","<pre style=\"white-space:pre-wrap;font-size:11px;color:#b00;padding:12px\">"+String(e.reason&&e.reason.message||e.reason)+"</pre>")});</script>
     <script type="module" src="./main.tsx"></script>
   </body>
 </html>
