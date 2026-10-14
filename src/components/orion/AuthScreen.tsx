@@ -2,6 +2,8 @@ import { useState } from "react";
 import { lovable } from "@/integrations/lovable/index";
 import { OrionLogo } from "./OrionLogo";
 import { Loader2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { SiteFooter } from "./LegalPage";
 
 export function AuthScreen() {
   const [busy, setBusy] = useState(false);
@@ -21,7 +23,13 @@ export function AuthScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen flex flex-col">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 gap-6">
+      <section className="max-w-md text-center space-y-2">
+        <h2 className="text-2xl font-semibold">Tu asistente de IA para crear videojuegos</h2>
+        <p className="text-sm text-muted-foreground">Orión Estellar te ayuda con programación, arte, diseño de niveles, imágenes, búsquedas y documentos de PowerPoint, Excel, Word y PDF — y recuerda todo lo que le enseñas.</p>
+        <p className="text-sm">Acceso de por vida por <b>$1 USD</b> (pago único). <Link to="/pricing" className="underline">Ver precios</Link></p>
+      </section>
       <div className="w-full max-w-sm liquid-glass rounded-3xl p-7 space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <OrionLogo size={56} glow />
@@ -30,6 +38,7 @@ export function AuthScreen() {
             <p className="text-xs text-muted-foreground mt-1">Inicia sesión con Google para continuar</p>
           </div>
         </div>
+
 
         <button
           type="button"
@@ -56,6 +65,8 @@ export function AuthScreen() {
           Tus chats y notas actuales se migran automáticamente a tu cuenta al iniciar sesión.
         </p>
       </div>
+    </div>
+    <SiteFooter />
     </div>
   );
 }
