@@ -18,6 +18,6 @@ export default defineConfig(({ mode }) => {
       "process.env": JSON.stringify({}),
       ...Object.fromEntries(Object.entries(env).map(([k, v]) => [`import.meta.env.${k}`, JSON.stringify(v)])),
     },
-    build: { outDir: path.join(root, "builda-dist"), emptyOutDir: true, sourcemap: false },
+    build: { outDir: "/tmp/builda-dist", emptyOutDir: true, sourcemap: false },
   };
 });
