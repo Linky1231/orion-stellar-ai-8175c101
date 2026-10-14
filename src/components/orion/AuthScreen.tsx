@@ -26,9 +26,9 @@ export function AuthScreen() {
     <div className="min-h-screen flex flex-col">
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 gap-6">
       <section className="max-w-md text-center space-y-2">
-        <h2 className="text-2xl font-semibold">Tu asistente de IA para crear videojuegos</h2>
+        <h2 className="text-2xl font-semibold text-gradient-orion">Tu asistente de IA para crear videojuegos</h2>
         <p className="text-sm text-muted-foreground">Orión Estellar te ayuda con programación, arte, diseño de niveles, imágenes, búsquedas y documentos de PowerPoint, Excel, Word y PDF — y recuerda todo lo que le enseñas.</p>
-        <p className="text-sm">Acceso de por vida por <b>$1 USD</b> (pago único). <Link to="/pricing" className="underline">Ver precios</Link></p>
+        <p className="text-sm">Acceso de por vida por <b>$1 USD</b> (pago único). <Link to="/pricing" className="liquid-glass rounded-full px-2.5 py-0.5 text-xs font-medium inline-block transition-transform active:scale-[0.96]">Ver precios</Link></p>
       </section>
       <div className="w-full max-w-sm liquid-glass rounded-3xl p-7 space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
@@ -44,7 +44,7 @@ export function AuthScreen() {
           type="button"
           onClick={google}
           disabled={busy}
-          className="w-full h-12 rounded-xl liquid-glass flex items-center justify-center gap-2 text-sm font-medium transition-transform active:scale-[0.97] hover:brightness-110 disabled:opacity-60"
+          className="tap w-full h-12 rounded-xl liquid-glass flex items-center justify-center gap-2 text-sm font-medium hover:brightness-110 disabled:opacity-60"
         >
           {busy ? (
             <Loader2 className="w-4 h-4 animate-spin" />
