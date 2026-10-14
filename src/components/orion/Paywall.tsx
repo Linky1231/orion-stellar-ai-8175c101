@@ -54,7 +54,7 @@ export function Paywall({ onPaid }: { onPaid: () => Promise<void> }) {
   return (
     <div className="min-h-screen flex flex-col">
       {getPaddleEnvironment() === "sandbox" && (
-        <div className="w-full bg-accent text-accent-foreground px-4 py-2 text-center text-xs">
+        <div className="w-full liquid-glass px-4 py-2 text-center text-xs">
           Los pagos en la vista previa son de prueba.{" "}
           <a href="https://docs.lovable.dev/features/payments#test-and-live-environments" target="_blank" rel="noopener noreferrer" className="underline">Saber más</a>
         </div>
@@ -63,14 +63,14 @@ export function Paywall({ onPaid }: { onPaid: () => Promise<void> }) {
         <div className="w-full max-w-sm liquid-glass rounded-3xl p-7 space-y-6 text-center">
           <div className="flex flex-col items-center gap-3">
             <OrionLogo size={56} glow />
-            <h1 className="text-xl font-semibold">Acceso a Orión Estellar</h1>
+            <h1 className="text-xl font-semibold text-gradient-orion">Acceso a Orión Estellar</h1>
             <p className="text-sm text-muted-foreground">Un solo pago de <b className="text-foreground">$1</b> y entras para siempre.</p>
           </div>
           <button
             type="button"
             onClick={pay}
             disabled={busy || waiting}
-            className="w-full h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center gap-2 text-sm font-medium transition-transform active:scale-[0.96] disabled:opacity-60"
+            className="tap w-full h-12 rounded-xl btn-cosmic flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-60"
           >
             {(busy || waiting) && <Loader2 className="w-4 h-4 animate-spin" />}
             {waiting ? "Confirmando pago…" : "Pagar $1 y entrar"}
