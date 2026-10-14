@@ -1,0 +1,27 @@
+{
+  "title": "Orión Estellar",
+  "tagline": "Tu asistente de IA con personalidad propia para crear videojuegos.",
+  "desc": "Chatea con Orión: programación, arte, diseño de niveles, notas, imágenes y documentos. Requiere iniciar sesión.",
+  "category": "other",
+  "engine": "h5",
+  "tags": [
+    "h5"
+  ],
+  "orientation": "portrait",
+  "minChromeMajor": 88,
+  "minIOSMajor": 15,
+  "coverKind": "palette",
+  "coverPalette": "ember",
+  "buildPrefix": "",
+  "buildEntry": "index.html",
+  "buildSize": 0,
+  "bundleUrl": "",
+  "bundleMd5": "",
+  "bundleVersion": "",
+  "bundleEntry": "index.html",
+  "bundleSize": 0,
+  "assetsVersion": "",
+  "assetsBaseUrl": "",
+  "assetsManifestUrl": "",
+  "sdkVersion": ""
+}
