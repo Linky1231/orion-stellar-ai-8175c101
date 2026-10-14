@@ -47,11 +47,14 @@ export function Sidebar({
   useEffect(() => { if (open) load(); }, [open, currentId]);
 
   useEffect(() => {
-    const ch = supabase
-      .channel("conv-list")
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, load)
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase
+        .channel("conv-list")
+        .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, load)
+        .subscribe();
+    } catch { /* live updates unavailable (e.g. inside Builda) */ }
+    return () => { if (ch) void supabase.removeChannel(ch); };
   }, []);
 
   const filtered = convs.filter((c) => c.title.toLowerCase().includes(q.toLowerCase()));

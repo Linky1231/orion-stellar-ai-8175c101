@@ -1,3 +1,4 @@
+import "./ws-shim";
 import "../src/styles.css";
 
 document.documentElement.classList.remove("dark");
