@@ -66,12 +66,36 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+// The Builda HTML5 build runs on another origin and calls /api/ai/* and /api/office/*.
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
+
+function isCorsPath(request: Request) {
+  const p = new URL(request.url).pathname;
+  return p.startsWith("/api/ai/") || p.startsWith("/api/office/");
+}
+
+function withCors(response: Response): Response {
+  const r = new Response(response.body, response);
+  for (const [k, v] of Object.entries(CORS_HEADERS)) r.headers.set(k, v);
+  return r;
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const cors = isCorsPath(request);
+    if (cors && request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+      return cors ? withCors(normalized) : normalized;
     } catch (error) {
       console.error(error);
       return brandedErrorResponse();
