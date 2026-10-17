@@ -11,13 +11,21 @@ import { ChatApp } from "@/components/orion/ChatApp";
 import { AuthProvider } from "@/lib/auth";
 import { setAccountScope, getLocalDeviceId } from "@/lib/device";
 
-// The Builda build is static: send Orión's server calls to the published app.
+import { localChatResponse, preloadLocalAi } from "./local-ai";
+
+// Builda blocks external servers: chat runs on the local model; other calls still try the published app.
 const API_ORIGIN = "https://orion-stellar-ai.lovable.app";
 const nativeFetch = window.fetch.bind(window);
-window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  if (input === "/api/ai/chat") {
+    let body: any = {};
+    try { body = JSON.parse(String(init?.body ?? "{}")); } catch {}
+    return localChatResponse(body, init?.signal);
+  }
   if (typeof input === "string" && input.startsWith("/api/")) input = API_ORIGIN + input;
   return nativeFetch(input, init);
 };
+preloadLocalAi();
 
 // No login inside Builda: the player's Builda account identifies their chats and notes.
 function BuildaGate() {
