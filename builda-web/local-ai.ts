@@ -1,6 +1,5 @@
 // Offline AI for the Builda build: a small GGUF model runs inside the game via WebAssembly.
 import { Wllama } from "@wllama/wllama";
-import wasmUrl from "@wllama/wllama/esm/wasm/wllama.wasm?url";
 
 const SYSTEM =
   "Eres Orión Estellar, una asistente de IA amable y breve. Respondes siempre en español, con frases claras y cortas.";
@@ -10,7 +9,7 @@ let ready: Promise<Wllama> | null = null;
 function load(): Promise<Wllama> {
   if (!ready) {
     ready = (async () => {
-      const w = new Wllama({ default: wasmUrl } as any, { suppressNativeLog: true });
+      const w = new Wllama({ default: new URL("./wasm/wllama.wasm", document.baseURI).href } as any, { suppressNativeLog: true });
       const res = await fetch(new URL("./model.bin", document.baseURI).href);
       if (!res.ok) throw new Error(`No se pudo cargar el modelo local (${res.status}).`);
       const blob = await res.blob();
