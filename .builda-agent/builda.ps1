@@ -340,7 +340,7 @@ $IssueActorPath = Join-Path $AuthDir "issue-actor-id"
 $Manifest = if ($env:BUILDA_MANIFEST) { $env:BUILDA_MANIFEST } else { "builda.publish.json" }
 $ProjectFile = if ($env:BUILDA_PROJECT_FILE) { $env:BUILDA_PROJECT_FILE } else { Join-Path $ProjectStateDir "game.json" }
 $LegacyProjectFile = if ($env:BUILDA_LEGACY_PROJECT_FILE) { $env:BUILDA_LEGACY_PROJECT_FILE } else { "builda.game.json" }
-$Version = "0.4.100"
+$Version = "0.4.101"
 $RuntimeVersionFile = Join-Path $Root "VERSION"
 $SdkVersionFile = Join-Path $ProjectStateDir "sdk-version"
 $DefaultBase = "https://builda-godot-api.poni.fun"
@@ -1506,8 +1506,8 @@ function Invoke-LegacyHomeMigrate {
   $TargetRoot = Join-Path (Get-Location).Path $ProjectStateDir
   [Console]::Error.WriteLine('layout-migration=required (toolchain moved from $HOME to per-project)')
   if (((Get-Location).Path -eq [System.IO.Path]::GetFullPath($HOME)) -or ([System.IO.Path]::GetFullPath($TargetRoot) -eq $SelfDir)) {
-    [Console]::Error.WriteLine("BuildaGame 工具链已改为项目级：请先 cd 到游戏项目根目录，再重跑原命令，")
-    [Console]::Error.WriteLine('迁移会自动完成（凭证仍留在 $HOME 的凭证目录）。')
+    [Console]::Error.WriteLine("The BuildaGame toolchain is now project-level: cd to the game project root and rerun the command;")
+    [Console]::Error.WriteLine('the migration then happens automatically (credentials stay in the credentials directory under $HOME).')
     exit 1
   }
   New-Item -ItemType Directory -Force -Path $TargetRoot | Out-Null
@@ -1535,7 +1535,7 @@ function Invoke-LegacyProjectDirMigrate {
   $Resolved = if (Test-Path $Expected) { (Resolve-Path $Expected).Path } else { "" }
   if ($Resolved -ne $SelfDir) {
     [Console]::Error.WriteLine("run-from=project-root-required")
-    [Console]::Error.WriteLine("本 CLI 是项目级工具，必须在它所属的项目根目录运行迁移：")
+    [Console]::Error.WriteLine("This CLI is a project-level tool; run the migration from the root of the project it belongs to:")
     [Console]::Error.WriteLine("  cd $(Split-Path -Parent $SelfDir) && ./$LegacyProjectStateDir/builda.ps1 <command>")
     exit 1
   }
@@ -1578,7 +1578,7 @@ function Require-ProjectContext {
   $Resolved = if (Test-Path $Expected) { (Resolve-Path $Expected).Path } else { "" }
   if ($Resolved -ne $SelfDir) {
     [Console]::Error.WriteLine("run-from=project-root-required")
-    [Console]::Error.WriteLine("本 CLI 是项目级工具，必须在它所属的项目根目录运行：")
+    [Console]::Error.WriteLine("This CLI is a project-level tool; run it from the root of the project it belongs to:")
     [Console]::Error.WriteLine("  cd $(Split-Path -Parent $SelfDir) && ./$ProjectStateDir/builda.ps1 <command>")
     exit 1
   }
@@ -2424,7 +2424,7 @@ function Assert-CmdResponseOk {
   param([object]$Resp, [string]$Label)
   if ($null -ne $Resp.code -and [int]$Resp.code -ne 0) {
     if ([int]$Resp.code -eq 200455) {
-      throw "发布失败：暂未开放外部游戏发布权限，请前往 $EarlyAccessUrl 申请内测资格"
+      throw "Publish failed: this account does not have publishing access yet; apply for beta access at $EarlyAccessUrl"
     }
     if ([int]$Resp.code -eq 10008) {
       throw "BUILDA_GAME_QUOTA_EXCEEDED: game quota is full; manage an existing game in the Builda app, then retry the same publish command. upload-recovery=the uploaded Bundle receipt is retained and the same publish command will reuse it."

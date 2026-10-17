@@ -22,7 +22,7 @@ ENV_FILE="$ROOT/publish.env"
 MANIFEST="${BUILDA_MANIFEST:-builda.publish.json}"
 PROJECT_FILE="${BUILDA_PROJECT_FILE:-$PROJECT_STATE_DIR/game.json}"
 LEGACY_PROJECT_FILE="${BUILDA_LEGACY_PROJECT_FILE:-builda.game.json}"
-VERSION="0.4.100"
+VERSION="0.4.101"
 RUNTIME_VERSION_FILE="$ROOT/VERSION"
 SDK_VERSION_FILE="$PROJECT_STATE_DIR/sdk-version"
 [ -f "$ENV_FILE" ] && . "$ENV_FILE"
@@ -1383,7 +1383,7 @@ cmd_response_ok_or_exit() {
   fi
   if [ "$code" != "0" ]; then
     if [ "$code" = "200455" ]; then
-      echo "发布失败：暂未开放外部游戏发布权限，请前往 $BUILDA_EARLY_ACCESS_URL 申请内测资格" >&2
+      echo "Publish failed: this account does not have publishing access yet; apply for beta access at $BUILDA_EARLY_ACCESS_URL" >&2
       printf '%s\n' "$resp" >&2
       exit 1
     fi
@@ -1494,7 +1494,7 @@ write_agents_md_block() {
   {
     [ -s AGENTS.md ] && printf '\n'
     printf '%s\n' "$AGENTS_BLOCK_BEGIN"
-    printf '%s\n\n' "## BuildaGame 发布工具（项目级）"
+    printf '%s\n\n' "${AGENTS_BLOCK_TITLE:-## BuildaGame 发布工具（项目级）}"
     stub_body
     printf '%s\n' "$AGENTS_BLOCK_END"
   } >> AGENTS.md
@@ -1619,8 +1619,8 @@ legacy_home_migrate() {
   local target_root="$PWD/$PROJECT_STATE_DIR"
   echo "layout-migration=required (toolchain moved from \$HOME to per-project)" >&2
   if [ "$PWD" = "$HOME" ] || [ "$target_root" = "$SELF_DIR" ]; then
-    echo "BuildaGame 工具链已改为项目级：请先 cd 到游戏项目根目录，再重跑原命令，" >&2
-    echo "迁移会自动完成（凭证仍留在 \$HOME 的凭证目录）。" >&2
+    echo "The BuildaGame toolchain is now project-level: cd to the game project root and rerun the command;" >&2
+    echo "the migration then happens automatically (credentials stay in the credentials directory under \$HOME)." >&2
     exit 1
   fi
   mkdir -p "$target_root"
@@ -1652,7 +1652,7 @@ legacy_project_dir_migrate() {
   echo "layout-migration=required (toolchain dir renamed $LEGACY_PROJECT_STATE_DIR -> $PROJECT_STATE_DIR)" >&2
   if [ "$(cd "$LEGACY_PROJECT_STATE_DIR" 2>/dev/null && pwd -P || true)" != "$SELF_DIR" ]; then
     echo "run-from=project-root-required" >&2
-    echo "本 CLI 是项目级工具，必须在它所属的项目根目录运行迁移：" >&2
+    echo "This CLI is a project-level tool; run the migration from the root of the project it belongs to:" >&2
     echo "  cd $(dirname "$SELF_DIR") && ./$LEGACY_PROJECT_STATE_DIR/builda <command>" >&2
     exit 1
   fi
@@ -1696,7 +1696,7 @@ require_project_context() {
   fi
   if [ "$(cd "$PROJECT_STATE_DIR" 2>/dev/null && pwd -P || true)" != "$SELF_DIR" ]; then
     echo "run-from=project-root-required" >&2
-    echo "本 CLI 是项目级工具，必须在它所属的项目根目录运行：" >&2
+    echo "This CLI is a project-level tool; run it from the root of the project it belongs to:" >&2
     echo "  cd $(dirname "$SELF_DIR") && ./$PROJECT_STATE_DIR/builda <command>" >&2
     exit 1
   fi
