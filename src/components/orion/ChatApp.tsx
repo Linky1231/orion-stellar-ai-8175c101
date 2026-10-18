@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, createContext, useContext, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
-import { supabase } from "@/integrations/supabase/client";
+import { localData as supabase } from "@/lib/local-data";
 import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
 import { streamChat, streamSearch, streamVisionChat, generateImage, buildImagePrompt, uploadAttachment, extractAndStoreMemory, type ChatMsg } from "@/lib/orion-api";
@@ -103,8 +103,9 @@ export function ChatApp() {
     const title = firstText.slice(0, 50) || "Nueva conversación";
     const { data } = await supabase
       .from("conversations").insert({ device_id: did, title }).select().single();
-    setConvId((data as any).id);
-    return (data as any).id;
+    if (!data?.id) throw new Error("No se pudo guardar la conversación en este dispositivo.");
+    setConvId(data.id);
+    return data.id;
   }
 
   async function send() {
@@ -133,7 +134,9 @@ export function ChatApp() {
     setInput("");
     const atts = pending; setPending([]);
 
-    const id = await ensureConv(text);
+    let id: string;
+    try { id = await ensureConv(text); }
+    catch (error) { setInput(text); setPending(atts); alert(error instanceof Error ? error.message : "No se pudo guardar la conversación."); return; }
 
     // Save user message
     const userMsg = { conversation_id: id, role: "user" as const, content: text, attachments: atts };
@@ -245,7 +248,7 @@ export function ChatApp() {
       const { data: a } = await supabase.from("messages")
         .insert({ conversation_id: id, role: "assistant", content: acc })
         .select().single();
-      setMessages((m) => m.map(x => x.id === tempId ? (a as DBMsg) : x));
+      if (a) setMessages((m) => m.map(x => x.id === tempId ? (a as DBMsg) : x));
       sfx.receive();
       await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", id);
       window.setTimeout(() => extractAndStoreMemory(text), 2500);

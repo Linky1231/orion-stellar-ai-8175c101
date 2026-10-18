@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { localData as supabase } from "@/lib/local-data";
 import { getDeviceId } from "@/lib/device";
 import { aiStream, aiText, aiImage, AI_MODEL } from "@/lib/ai";
 import { visionStream } from "@/lib/vision";
@@ -236,15 +236,8 @@ export function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-export async function uploadAttachment(file: File, bucket = "chat-attachments"): Promise<string> {
-  const safeName = file.name
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_").slice(-100) || "archivo";
-  const path = `${crypto.randomUUID()}-${safeName}`;
-  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false });
-  if (error) throw error;
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+export async function uploadAttachment(file: File, _bucket = "chat-attachments"): Promise<string> {
+  return fileToDataUrl(file);
 }
 
 function parseJsonLoose(raw: string): any {
