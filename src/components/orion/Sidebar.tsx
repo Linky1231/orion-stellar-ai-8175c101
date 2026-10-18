@@ -43,7 +43,7 @@ export function Sidebar({
     setConvs((data as Conv[]) || []);
   }
 
-  useEffect(() => { if (open) load(); }, [open, currentId]);
+  useEffect(() => { void load(); }, [open, currentId]);
 
   useEffect(() => {
     let ch: ReturnType<typeof supabase.channel> | null = null;
