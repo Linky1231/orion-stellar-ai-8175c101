@@ -3,6 +3,7 @@ type Row = Record<string, any>;
 type Result = { data: any; error: null };
 const DATABASE = "orion-local-v1";
 let database: Promise<IDBDatabase> | undefined;
+const listeners = new Set<{ table: string; callback: (payload: any) => void }>();
 
 function openDatabase() {
   if (!database) database = new Promise<IDBDatabase>((resolve, reject) => {
@@ -78,19 +79,32 @@ class LocalQuery implements PromiseLike<Result> {
           notes.onsuccess = () => store.put((notes.result || []).map((note: Row) => result.selected.some((folder) => folder.id === note.folder_id) ? { ...note, folder_id: null } : note), "notes");
         }
       };
-      transaction.oncomplete = () => resolve({ data, error: null });
+      transaction.oncomplete = () => {
+        resolve({ data, error: null });
+        if (this.action !== "select") {
+          for (const listener of listeners) {
+            if (listener.table === this.table) listener.callback({ new: this.one ? data : data?.[0], eventType: this.action.toUpperCase() });
+          }
+        }
+      };
       transaction.onabort = transaction.onerror = () => reject(new Error("No se pudo guardar. Revisa el espacio disponible y los permisos de almacenamiento del dispositivo."));
     });
   }
 }
 
 class LocalChannel {
-  on(_event: string, _filter: unknown, _callback: (payload: any) => void) { return this; }
-  subscribe() { return this; }
+  private listener?: { table: string; callback: (payload: any) => void };
+  on(_event: string, filter: { table: string; event?: string }, callback: (payload: any) => void) {
+    // Chat inserts already update React state; conversation-list changes need a reload.
+    if (filter.table === "conversations") this.listener = { table: filter.table, callback };
+    return this;
+  }
+  subscribe() { if (this.listener) listeners.add(this.listener); return this; }
+  unsubscribe() { if (this.listener) listeners.delete(this.listener); }
 }
 
 export const localData = {
   from: (table: string) => new LocalQuery(table),
   channel: (_name: string) => new LocalChannel(),
-  removeChannel: async (_channel: LocalChannel) => {},
+  removeChannel: async (channel: LocalChannel) => { channel.unsubscribe(); },
 };
