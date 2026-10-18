@@ -1,20 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChatApp } from "@/components/orion/ChatApp";
-import { AuthScreen } from "@/components/orion/AuthScreen";
-import { AuthProvider, useAuth } from "@/lib/auth";
-import { Loader2 } from "lucide-react";
-
-const Spinner = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-  </div>
-);
-
-function Gate() {
-  const { user, loading } = useAuth();
-  if (loading) return <Spinner />;
-  return user ? <ChatApp key={user.id} /> : <AuthScreen />;
-}
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -28,9 +13,5 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: () => (
-    <AuthProvider>
-      <Gate />
-    </AuthProvider>
-  ),
+  component: ChatApp,
 });

@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { localData as supabase } from "@/lib/local-data";
 import { getDeviceId } from "@/lib/device";
 import { sfx } from "@/lib/sounds";
-import { Search, Plus, Trash2, Pencil, MessageSquare, StickyNote, X, ImagePlus, Bug, LogOut } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { Search, Plus, Trash2, Pencil, MessageSquare, StickyNote, X, ImagePlus, Bug } from "lucide-react";
 import { OrionLogo } from "./OrionLogo";
 
 type Conv = { id: string; title: string; updated_at: string };
@@ -44,7 +43,7 @@ export function Sidebar({
     setConvs((data as Conv[]) || []);
   }
 
-  useEffect(() => { if (open) load(); }, [open, currentId]);
+  useEffect(() => { void load(); }, [open, currentId]);
 
   useEffect(() => {
     let ch: ReturnType<typeof supabase.channel> | null = null;
@@ -210,38 +209,8 @@ export function Sidebar({
             </div>
           ))}
         </div>
-        <ProfileFooter />
       </aside>
     </>
   );
 }
 
-function ProfileFooter() {
-  const { user, profile, signOut } = useAuth();
-  const [avatarFailed, setAvatarFailed] = useState(false);
-  if (!user) return null;
-  const name = profile?.display_name || user.email?.split("@")[0] || "Cuenta";
-  const initial = name.charAt(0).toUpperCase();
-  return (
-    <div className="shrink-0 border-t border-border px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center gap-3 bg-sidebar">
-      {profile?.avatar_url && !avatarFailed ? (
-        <img src={profile.avatar_url} alt={name} onError={() => setAvatarFailed(true)} className="w-9 h-9 shrink-0 rounded-full object-cover" />
-      ) : (
-        <div className="w-9 h-9 shrink-0 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-semibold">
-          {initial}
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="text-sm truncate">{name}</div>
-        <div className="text-[10px] text-muted-foreground truncate">{user.email}</div>
-      </div>
-      <button
-        title="Cerrar sesión"
-        onClick={() => { sfx.tap(); void signOut(); }}
-        className="tap p-2 rounded-lg hover:bg-accent transition-transform active:scale-95"
-      >
-        <LogOut className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}

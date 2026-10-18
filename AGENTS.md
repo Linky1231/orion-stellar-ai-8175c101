@@ -19,3 +19,7 @@ Windows（下载为文件，禁止 `iwr | iex`）：
 $p = Join-Path $env:TEMP "builda-install.ps1"; iwr https://ai.builda.game/agent/install.ps1 -UseBasicParsing -OutFile $p; & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $p; Remove-Item -Force $p -ErrorAction SilentlyContinue
 ```
 <!-- END builda -->
+
+- Both the web route and Builda entry render ChatApp directly, without an authentication provider, to keep local access independent of accounts.
+- Personal data and local assistant configuration use the IndexedDB adapter in local-data; attachments are persisted as data URLs so chat and notes require no remote database or login.
+- AI transport remains separate from persistence: the web keeps its existing AI endpoints and Builda keeps its bundled local model.
