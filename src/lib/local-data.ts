@@ -94,7 +94,7 @@ class LocalQuery implements PromiseLike<Result> {
 
 class LocalChannel {
   private listener?: { table: string; callback: (payload: any) => void };
-  on(_event: string, filter: { table: string; event?: string }, callback: (payload: any) => void) {
+  on(_event: string, filter: { table: string; event?: string; schema?: string; filter?: string }, callback: (payload: any) => void) {
     // Chat inserts already update React state; conversation-list changes need a reload.
     if (filter.table === "conversations") this.listener = { table: filter.table, callback };
     return this;
