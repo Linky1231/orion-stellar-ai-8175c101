@@ -1,10 +1,10 @@
 import { configureLocalStorage } from "../src/lib/local-data";
 import { setAccountScope } from "../src/lib/device";
 
-type KVResult = { ok: boolean; data?: { value?: unknown }; error?: { message?: string } };
+type KVResult = { ok: boolean; data?: unknown; error?: { message?: string } };
 type BuildaStorage = {
   get: (key: string) => Promise<KVResult>;
-  set: (key: string, value: unknown) => Promise<KVResult>;
+  set: (key: string, value: Uint8Array) => Promise<KVResult>;
 };
 function storage(): BuildaStorage {
   const sdk = (window as unknown as { Builda?: { privateKV?: BuildaStorage } }).Builda;
@@ -24,16 +24,18 @@ export function installBuildaStorage() {
     async read(table) {
       const result = await storage().get(buildaTableKey(table));
       if (!result.ok) throw new Error(result.error?.message || "No se pudo leer el guardado de Builda.");
-      const value = result.data?.value;
-      if (value == null) return undefined;
-      if (!Array.isArray(value)) throw new Error("El guardado de Builda no es válido. No se sobrescribió.");
-      return value;
+      if (result.data == null) return undefined;
+      if (!(result.data instanceof Uint8Array)) throw new Error("El guardado de Builda no es válido. No se sobrescribió.");
+      const rows = JSON.parse(new TextDecoder().decode(result.data));
+      if (!Array.isArray(rows)) throw new Error("El guardado de Builda no es válido. No se sobrescribió.");
+      return rows;
     },
     async write(table, rows) {
-      if (new TextEncoder().encode(JSON.stringify(rows)).length > 30 * 1024) {
+      const bytes = new TextEncoder().encode(JSON.stringify(rows));
+      if (bytes.length > 30 * 1024) {
         throw new Error("Este guardado alcanzó el límite de Builda. Exporta o elimina datos antiguos antes de guardar más.");
       }
-      const result = await storage().set(buildaTableKey(table), rows);
+      const result = await storage().set(buildaTableKey(table), bytes);
       if (!result.ok) throw new Error(result.error?.message || "No se pudo guardar en Builda.");
     },
   });
