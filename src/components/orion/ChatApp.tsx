@@ -140,7 +140,15 @@ export function ChatApp() {
 
     // Save user message
     const userMsg = { conversation_id: id, role: "user" as const, content: text, attachments: atts };
-    const { data: saved } = await supabase.from("messages").insert(userMsg).select().single();
+    let saved: DBMsg | null;
+    try {
+      const result = await supabase.from("messages").insert(userMsg).select().single();
+      saved = result.data;
+    } catch (error) {
+      setInput(text); setPending(atts);
+      alert(error instanceof Error ? error.message : "No se pudo guardar el mensaje.");
+      return;
+    }
     if (saved) setMessages((m) => (m.some(x => x.id === (saved as any).id) ? m : [...m, saved as DBMsg]));
 
     // Image generation mode

@@ -21,5 +21,6 @@ $p = Join-Path $env:TEMP "builda-install.ps1"; iwr https://ai.builda.game/agent/
 <!-- END builda -->
 
 - Both the web route and Builda entry render ChatApp directly, without an authentication provider, to keep local access independent of accounts.
-- Personal data and local assistant configuration use the IndexedDB adapter in local-data; attachments are persisted as data URLs so chat and notes require no remote database or login.
+- Personal data uses the local-data adapter: IndexedDB on the web and the official privateKV provider in Builda, so the game does not rely on blocked browser storage or remote database login; attachments remain data URLs.
+- Builda saved tables use stable orion_local_<table>_v1 keys, validate SDK results, and reject oversized writes without truncation to respect the platform save contract.
 - AI transport remains separate from persistence: the web keeps its existing AI endpoints and Builda keeps its bundled local model.

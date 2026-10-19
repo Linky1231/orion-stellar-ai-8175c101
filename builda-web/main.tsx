@@ -1,8 +1,8 @@
 import "./ws-shim";
 import "../src/styles.css";
+import { installBuildaStorage } from "./storage";
 
 document.documentElement.classList.remove("dark");
-try { localStorage.setItem("theme", "light"); } catch {}
 if (!(crypto as any).randomUUID) (crypto as any).randomUUID = () => "10000000-1000-4000-5000-100000000000".replace(/[018]/g, (c: any) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
 import { createRoot } from "react-dom/client";
 import { ChatApp } from "@/components/orion/ChatApp";
@@ -22,6 +22,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   return nativeFetch(input, init);
 };
 preloadLocalAi();
+installBuildaStorage();
 
 // Open the local chat immediately, without account lookup or login.
 const root = document.getElementById("root");

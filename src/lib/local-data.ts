@@ -4,6 +4,10 @@ type Result = { data: any; error: null };
 const DATABASE = "orion-local-v1";
 let database: Promise<IDBDatabase> | undefined;
 const listeners = new Set<{ table: string; callback: (payload: any) => void }>();
+type TableStorage = { read: (table: string) => Promise<Row[] | undefined>; write: (table: string, rows: Row[]) => Promise<void> };
+let tableStorage: TableStorage | undefined;
+let storageQueue: Promise<unknown> = Promise.resolve();
+export function configureLocalStorage(storage: TableStorage) { tableStorage = storage; }
 
 function openDatabase() {
   if (!database) database = new Promise<IDBDatabase>((resolve, reject) => {
@@ -57,6 +61,32 @@ class LocalQuery implements PromiseLike<Result> {
     return this.execute().then(fulfilled, rejected);
   }
   private async execute(): Promise<Result> {
+    const storage = tableStorage;
+    if (storage) {
+      const task = storageQueue.catch(() => {}).then(async () => {
+        const initial = this.table === "orion_config" ? [{ id: 1, personality: "", behavior: "", context: "" }] : [];
+        const rows = (await storage.read(this.table) ?? initial).filter((row) => row && typeof row === "object");
+        const result = applyLocalQuery(rows, this.action, this.values, this.filters);
+        if (this.action !== "select") {
+          await storage.write(this.table, result.rows);
+          if (this.table === "note_folders" && this.action === "delete") {
+            const notes = await storage.read("notes") ?? [];
+            await storage.write("notes", notes.map((note) => result.selected.some((folder) => folder.id === note.folder_id) ? { ...note, folder_id: null } : note));
+          }
+        }
+        if (this.sorting) {
+          const { field, ascending } = this.sorting;
+          result.selected.sort((a, b) => String(a[field] ?? "").localeCompare(String(b[field] ?? "")) * (ascending ? 1 : -1));
+        }
+        const selected = this.maximum === undefined ? result.selected : result.selected.slice(0, this.maximum);
+        if (this.action !== "select") for (const listener of listeners) {
+          if (listener.table === this.table) listener.callback({ eventType: this.action.toUpperCase() });
+        }
+        return { data: this.one ? selected[0] ?? null : selected, error: null };
+      });
+      storageQueue = task;
+      return task;
+    }
     const db = await openDatabase();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction("tables", "readwrite");
