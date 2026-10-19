@@ -4,4 +4,4 @@
 - [x] Verify saving and reopening a conversation without login.
 - [x] Correct and test the Builda bundle with its official saved-game storage and bundled AI.
 - [x] Prepare and validate the corrected bundle.
-- [ ] Update the Builda draft — blocked on renewed account permission.
+- [x] Update the Builda draft — uploaded, validated, and synchronized successfully; public release is completed in the Builda app.
