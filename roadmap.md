@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Add and verify a public, source-backed AI tools for game development guide and link it from the web app.
 - [x] Remove login and open directly to chat in web and Builda.
 - [x] Persist personal data through the web local store and official Builda saved-game storage.
 - [x] Verify saving and reopening a conversation without login.
