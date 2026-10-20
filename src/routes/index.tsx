@@ -1,5 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChatApp } from "@/components/orion/ChatApp";
+import { Button } from "@/components/ui/button";
+import { BookOpen } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -13,5 +15,9 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: ChatApp,
+  component: ChatPage,
 });
+
+function ChatPage() {
+  return <ChatApp headerAction={<Button asChild variant="ghost" size="icon" title="Guía de herramientas de IA"><Link to="/blog/ai-tools-for-game-development" aria-label="Guía de herramientas de IA"><BookOpen /></Link></Button>} />;
+}

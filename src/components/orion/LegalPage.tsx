@@ -6,6 +6,7 @@ export function SiteFooter() {
   return (
     <footer className="w-full px-4 py-6 text-center">
       <div className="liquid-glass rounded-full inline-flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-5 py-2 text-xs text-muted-foreground">
+        <Link to="/blog/ai-tools-for-game-development" className="hover:text-foreground transition-colors">Guía de IA para videojuegos</Link>
         <Link to="/pricing" className="hover:text-foreground transition-colors">Precios</Link>
         <Link to="/terms" className="hover:text-foreground transition-colors">Términos</Link>
         <Link to="/privacy" className="hover:text-foreground transition-colors">Privacidad</Link>
