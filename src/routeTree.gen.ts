@@ -14,6 +14,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RefundRouteImport } from './routes/refund'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as BlogAiToolsForGameDevelopmentRouteImport } from './routes/blog.ai-tools-for-game-development'
 import { Route as ApiAiChatRouteImport } from './routes/api/ai/chat'
 import { Route as ApiAiImageRouteImport } from './routes/api/ai/image'
 import { Route as ApiAiSearchRouteImport } from './routes/api/ai/search'
@@ -46,6 +47,12 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BlogAiToolsForGameDevelopmentRoute =
+  BlogAiToolsForGameDevelopmentRouteImport.update({
+    id: '/blog/ai-tools-for-game-development',
+    path: '/blog/ai-tools-for-game-development',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAiChatRoute = ApiAiChatRouteImport.update({
   id: '/api/ai/chat',
   path: '/api/ai/chat',
@@ -84,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/refund': typeof RefundRoute
   '/terms': typeof TermsRoute
+  '/blog/ai-tools-for-game-development': typeof BlogAiToolsForGameDevelopmentRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
@@ -97,6 +105,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/refund': typeof RefundRoute
   '/terms': typeof TermsRoute
+  '/blog/ai-tools-for-game-development': typeof BlogAiToolsForGameDevelopmentRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
@@ -111,6 +120,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/refund': typeof RefundRoute
   '/terms': typeof TermsRoute
+  '/blog/ai-tools-for-game-development': typeof BlogAiToolsForGameDevelopmentRoute
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/image': typeof ApiAiImageRoute
   '/api/ai/search': typeof ApiAiSearchRoute
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/refund'
     | '/terms'
+    | '/blog/ai-tools-for-game-development'
     | '/api/ai/chat'
     | '/api/ai/image'
     | '/api/ai/search'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/refund'
     | '/terms'
+    | '/blog/ai-tools-for-game-development'
     | '/api/ai/chat'
     | '/api/ai/image'
     | '/api/ai/search'
@@ -152,6 +164,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/refund'
     | '/terms'
+    | '/blog/ai-tools-for-game-development'
     | '/api/ai/chat'
     | '/api/ai/image'
     | '/api/ai/search'
@@ -166,6 +179,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RefundRoute: typeof RefundRoute
   TermsRoute: typeof TermsRoute
+  BlogAiToolsForGameDevelopmentRoute: typeof BlogAiToolsForGameDevelopmentRoute
   ApiAiChatRoute: typeof ApiAiChatRoute
   ApiAiImageRoute: typeof ApiAiImageRoute
   ApiAiSearchRoute: typeof ApiAiSearchRoute
@@ -209,6 +223,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/ai-tools-for-game-development': {
+      id: '/blog/ai-tools-for-game-development'
+      path: '/blog/ai-tools-for-game-development'
+      fullPath: '/blog/ai-tools-for-game-development'
+      preLoaderRoute: typeof BlogAiToolsForGameDevelopmentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai/chat': {
@@ -262,6 +283,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RefundRoute: RefundRoute,
   TermsRoute: TermsRoute,
+  BlogAiToolsForGameDevelopmentRoute: BlogAiToolsForGameDevelopmentRoute,
   ApiAiChatRoute: ApiAiChatRoute,
   ApiAiImageRoute: ApiAiImageRoute,
   ApiAiSearchRoute: ApiAiSearchRoute,
