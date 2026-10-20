@@ -51,7 +51,7 @@ function cleanImagePrompt(text: string) {
   );
 }
 
-export function ChatApp() {
+export function ChatApp({ headerAction }: { headerAction?: React.ReactNode } = {}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
@@ -329,6 +329,7 @@ export function ChatApp() {
             <div className="font-semibold tracking-tight leading-tight">Orión Estellar</div>
             <div className="text-[11px] text-muted-foreground">v5.0 · por Linky</div>
           </div>
+          {headerAction}
         </header>
 
 
