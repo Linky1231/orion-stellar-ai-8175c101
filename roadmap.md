@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Replace the Builda assistant with a complete Gemma model — blocked pending a model size compatible with Builda or approval of a different deployment target.
 - [ ] Fix and verify the local AI “Load failed” error in Builda and prepare its corrected version.
 - [x] Add and verify a public, source-backed AI tools for game development guide and link it from the web app.
 - [x] Remove login and open directly to chat in web and Builda.
