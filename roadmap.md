@@ -1,4 +1,5 @@
 # Tasks
+- [ ] Replace the Builda assistant with a complete Gemma model — blocked: Gemma 3 1B Q4_K_M is about 806 MB, exceeding Builda's 200 MiB default and 500 MiB maximum; user must choose a different deployment target or obtain official platform support.
 - [ ] Fix and verify the local AI “Load failed” error in Builda and prepare its corrected version.
 - [x] Add and verify a public, source-backed AI tools for game development guide and link it from the web app.
 - [x] Remove login and open directly to chat in web and Builda.
