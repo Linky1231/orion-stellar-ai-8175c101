@@ -255,7 +255,8 @@ function Install-BuildaWindowsToolchain {
       throw "builda.ps1 version does not match $ExpectedVersion"
     }
     $SkillText = Read-Utf8Text (Join-Path $StageRoot "SKILL.md")
-    if ($SkillText -notlike "*BuildaGame agent 工具链版本：$ExpectedVersion*") {
+    # The English marker is authoritative; the Chinese marker stays in the Skill's HTML comment for Windows CLI 0.4.101 and earlier to verify, and is accepted here too.
+    if ($SkillText -notlike "*BuildaGame agent toolchain version: $ExpectedVersion*" -and $SkillText -notlike "*BuildaGame agent 工具链版本：$ExpectedVersion*") {
       throw "SKILL.md version does not match $ExpectedVersion"
     }
     $CmdText = Read-Utf8Text (Join-Path $StageRoot "builda.cmd")
@@ -324,7 +325,7 @@ function Install-BuildaWindowsToolchain {
 
 
 $SelfDir = Split-Path -Parent ([System.IO.Path]::GetFullPath($PSCommandPath))
-# 旧命名 .builda-godot-agent（多引擎化前）由 Invoke-LegacyProjectDirMigrate / Invoke-LegacyAuthMigrate 自动迁移
+# The legacy name .builda-godot-agent (pre multi-engine) is migrated automatically by Invoke-LegacyProjectDirMigrate / Invoke-LegacyAuthMigrate
 $UserAuthDir = Join-Path $HOME ".builda-agent"
 $AuthDir = if ($env:BUILDA_AUTH_DIR) { [System.IO.Path]::GetFullPath($env:BUILDA_AUTH_DIR) } else { $UserAuthDir }
 $LegacyAuthDir = Join-Path $HOME ".builda-godot-agent"
@@ -340,7 +341,7 @@ $IssueActorPath = Join-Path $AuthDir "issue-actor-id"
 $Manifest = if ($env:BUILDA_MANIFEST) { $env:BUILDA_MANIFEST } else { "builda.publish.json" }
 $ProjectFile = if ($env:BUILDA_PROJECT_FILE) { $env:BUILDA_PROJECT_FILE } else { Join-Path $ProjectStateDir "game.json" }
 $LegacyProjectFile = if ($env:BUILDA_LEGACY_PROJECT_FILE) { $env:BUILDA_LEGACY_PROJECT_FILE } else { "builda.game.json" }
-$Version = "0.4.101"
+$Version = "0.4.102"
 $RuntimeVersionFile = Join-Path $Root "VERSION"
 $SdkVersionFile = Join-Path $ProjectStateDir "sdk-version"
 $DefaultBase = "https://builda-godot-api.poni.fun"
@@ -406,7 +407,7 @@ if (Test-Path $EnvPath) {
   }
 }
 if ($env:BUILDA_STUDIO_API_BASE) {
-  # Studio Worker 显式注入集群内 API；外部用户继续使用项目 publish.env 的公网地址。
+  # Studio Worker explicitly injects the in-cluster API; external users keep using the public address from the project's publish.env.
   $Base = $env:BUILDA_STUDIO_API_BASE.Trim()
 }
 $EffectiveSiteBase = if ($SiteOrigin) { $SiteOrigin } else { $DefaultSiteBase }
@@ -778,7 +779,7 @@ function Write-SchemaAtomicText {
     $Stream.Dispose()
     $Stream = $null
     if (Test-Path $FullPath) {
-      # PowerShell 把 $null 转成 "" 传给 .NET string 参数，File.Replace 会因备份路径为空抛异常；必须传真正的 null。
+      # PowerShell converts $null to "" for .NET string parameters, and File.Replace throws on an empty backup path; a real null must be passed.
       [System.IO.File]::Replace($Temporary, $FullPath, [NullString]::Value)
     } else {
       [System.IO.File]::Move($Temporary, $FullPath)
@@ -1191,7 +1192,7 @@ function Show-Usage {
   Write-Host "builda publish [zip] [manifest]  Upload an optional build and sync this project's draft."
   Write-Host "builda schemas upload [manifest] Register immutable object schemas for the bound game."
   Write-Host "builda gen <audio|music|image|model3d> --prompt <text> -o <file>"
-  Write-Host "                               Generate assets with Builda AI (consumes Builda energy); see builda gen --help."
+  Write-Host "                               Generate assets with Builda AI (consumes Builda Credits); see builda gen --help."
   Write-Host "builda assets check <zip>       Check assets.zip: audio/** (.mp3|ogg|wav) + res/** (.glb|gltf|bin|ktx2|png|jpg|jpeg|webp|json|bundle|hash|pck; pck must be data-only)."
   Write-Host "builda assets upload <zip>      Upload audio/res assets; update manifest."
   Write-Host "builda create-draft [manifest]  Sync a new Builda pending draft and update the Builda current version."
@@ -1250,10 +1251,10 @@ function Write-PublishPreflight {
   Write-Host "target-game=$Target"
 }
 
-# Get-EngineValue 静默判定引擎（小写，与后端/协议口径一致）：godot 优先；
-# unity = ProjectSettings/ProjectVersion.txt 或 Assets/+Packages/manifest.json；
-# HTML5 = 根目录有 index.html 或 package.json。
-# 按项目引擎输出基础 Skill 核心之外本项目适用的按需专题，Agent 只读命中的那几份（见 SKILL.md 任务分流表）。
+# Get-EngineValue silently detects the engine (lowercase, consistent with backend/protocol): godot first;
+# unity = ProjectSettings/ProjectVersion.txt or Assets/+Packages/manifest.json;
+# HTML5 = index.html or package.json in the root directory.
+# Outputs the on-demand topics beyond the base Skill core that apply to this project's engine; the Agent reads only the matching ones (see the task routing table in SKILL.md).
 function Write-SkillTopics {
   param([string]$Engine)
   $TopicBase = "$AgentBase/agent/releases/$Version"
@@ -1277,7 +1278,7 @@ function Get-EngineValue {
   return "unknown"
 }
 
-# Get-ManifestEngine 引擎单一来源：manifest engine 字段优先，缺失按目录判定，非法兜底 godot
+# Get-ManifestEngine is the single source for the engine: manifest engine field first, falls back to directory detection if missing, invalid values fall back to godot
 function Get-ManifestEngine {
   param([string]$File = $Manifest)
   $V = ""
@@ -1324,19 +1325,19 @@ function Show-AuthFailureHint {
 
 function Get-StubBody {
   @(
-    "本项目已安装项目级 BuildaGame 工具链（发布 Godot Web / HTML5 / Unity WebGL 游戏到 Builda）。CLI 与基础说明书同版；SDK 随项目独立锁定版本："
+    "This project has the project-scoped BuildaGame toolchain installed (publishes Godot Web / HTML5 / Unity WebGL games to Builda). The CLI and the base Skill share one version; the SDK version is pinned per project:"
     ""
-    '1. 完整说明书（先读）：项目根的 `.builda-agent/SKILL.md`'
-    'SDK 任务必须读取 .builda-agent/sdk-guidance/<sdk-version>/SKILL.md；缺依赖按基础 Skill 恢复，升级后重新读取。'
-    '2. 每次任务开始先跑：`./.builda-agent/builda check`（自动对齐工具链版本，并提示 SDK 是否需要同步）'
+    '1. Full guide (read first): `.builda-agent/SKILL.md` at the project root'
+    'SDK tasks must read .builda-agent/sdk-guidance/<sdk-version>/SKILL.md; restore missing dependencies per the base Skill, and reread it after upgrading.'
+    '2. At the start of every task run `./.builda-agent/builda check` (aligns the toolchain version automatically and reports whether the SDK needs syncing)'
     ""
-    "若上述文件缺失（例如刚 clone 本仓库），在项目根目录重装："
+    "If these files are missing (e.g. right after cloning this repo), reinstall from the project root:"
     ""
     '```bash'
     "curl -fsSL $AgentBase/agent/install.sh | bash"
     '```'
     ''
-    'Windows（下载为文件，禁止 `iwr | iex`）：'
+    'Windows (download to a file; never `iwr | iex`):'
     ''
     '```powershell'
     ('$p = Join-Path $env:TEMP "builda-install.ps1"; iwr ' + $AgentBase + '/agent/install.ps1 -UseBasicParsing -OutFile $p; & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $p; Remove-Item -Force $p -ErrorAction SilentlyContinue')
@@ -1347,8 +1348,8 @@ function Get-StubBody {
 function Write-StateGitignore {
   New-Item -ItemType Directory -Force -Path $Root | Out-Null
   $Content = @'
-# BuildaGame 自动管理：仅敏感或可再生运行态不入库。
-# builda/builda.ps1/builda.cmd、SKILL.md、VERSION、game.json 与 sdk-version 入库。
+# Managed by BuildaGame: only sensitive or regenerable runtime state is ignored.
+# builda/builda.ps1/builda.cmd, SKILL.md, VERSION, game.json and sdk-version are committed.
 AGENT_INSTALL.md
 publish.env
 md_*.md
@@ -1366,7 +1367,7 @@ refresh-token
 
 $AgentsBlockBegin = "<!-- BEGIN builda (auto-managed) -->"
 $AgentsBlockEnd = "<!-- END builda -->"
-# 多引擎化前的旧标记块（builda-godot）：写新块前先清掉，避免双块并存
+# Legacy marker block from before multi-engine (builda-godot): clear it before writing the new block to avoid two blocks coexisting
 $LegacyAgentsBlockBegin = "<!-- BEGIN builda-godot (auto-managed) -->"
 $LegacyAgentsBlockEnd = "<!-- END builda-godot -->"
 
@@ -1385,9 +1386,19 @@ function Remove-AgentsMdBlockByMarkers {
 function Write-AgentsMdBlock {
   $Path = "AGENTS.md"
   Remove-AgentsMdBlockByMarkers $LegacyAgentsBlockBegin $LegacyAgentsBlockEnd | Out-Null
-  if ((Test-Path $Path) -and ((Read-Utf8Text $Path) -like "*$AgentsBlockBegin*")) { return }
+  $Block = "$AgentsBlockBegin`n## BuildaGame publishing tools (project-scoped)`n`n$(Get-StubBody)`n$AgentsBlockEnd`n"
+  if ((Test-Path $Path) -and ((Read-Utf8Text $Path) -like "*$AgentsBlockBegin*")) {
+    # When the block content matches the current version, leave the user's file untouched; otherwise (e.g. an old Chinese block) replace the marker block in place;
+    # content outside the block and the block's position stay unchanged; do nothing if the end marker is missing.
+    $Content = Read-Utf8Text $Path
+    $Pattern = "(?ms)^$([regex]::Escape($AgentsBlockBegin))\r?\n.*?^$([regex]::Escape($AgentsBlockEnd))\r?\n?"
+    $Match = [regex]::Match($Content, $Pattern)
+    if (!$Match.Success) { return }
+    if (($Match.Value -replace "`r", "").TrimEnd("`n") -eq $Block.TrimEnd("`n")) { return }
+    Write-Utf8TextNoBom $Path ($Content.Substring(0, $Match.Index) + $Block + $Content.Substring($Match.Index + $Match.Length))
+    return
+  }
   $Prefix = if ((Test-Path $Path) -and (Get-Item $Path).Length -gt 0) { "`n" } else { "" }
-  $Block = "$AgentsBlockBegin`n## BuildaGame 发布工具（项目级）`n`n$(Get-StubBody)`n$AgentsBlockEnd`n"
   Append-Utf8TextNoBom $Path "$Prefix$Block"
 }
 
@@ -1428,7 +1439,7 @@ Game identity lives in ./.builda-agent/game.json (committed with the project).
 }
 
 function Remove-LegacyProjectStubs {
-  # 多引擎化前的旧 stub 名（builda-godot）：每次同步注册时顺手清理，避免双注册
+  # Legacy stub name from before multi-engine (builda-godot): clean it up on every sync registration to avoid double registration
   foreach ($Path in @(".claude/skills/builda-godot", ".cursor/rules/builda-godot.mdc", ".clinerules/builda-godot.md", ".roo/rules/builda-godot.md", ".windsurf/rules/builda-godot.md")) {
     if (Test-Path $Path) { Remove-Item -Recurse -Force $Path -ErrorAction SilentlyContinue }
   }
@@ -1446,7 +1457,7 @@ function Sync-ProjectRegistrations {
   if ((Test-Path $ClaudeHome) -or (Test-Path ".claude")) {
     $ClaudeSkillRoot = ".claude/skills/builda"
     New-Item -ItemType Directory -Force -Path $ClaudeSkillRoot | Out-Null
-    Write-Utf8TextNoBom (Join-Path $ClaudeSkillRoot "SKILL.md") "---`nname: builda`ndescription: BuildaGame（Builda）游戏发布工具链：接入 Builda SDK、本地 mock 调试、导出 Godot Web / Unity WebGL 或打包 HTML5 构建、上传/更新游戏草稿。`n---`n`n$(Get-StubBody)`n"
+    Write-Utf8TextNoBom (Join-Path $ClaudeSkillRoot "SKILL.md") "---`nname: builda`ndescription: BuildaGame (Builda) game publishing toolchain - integrate the Builda SDK, debug locally with the mock, export Godot Web / Unity WebGL or package HTML5 builds, and upload/update game drafts.`n---`n`n$(Get-StubBody)`n"
     $Registrations.Add("Claude Code: .claude/skills/builda/SKILL.md")
   }
 
@@ -1527,7 +1538,7 @@ function Invoke-LegacyHomeMigrate {
 }
 
 function Invoke-LegacyProjectDirMigrate {
-  # 本体躺在旧命名的项目目录 .builda-godot-agent/：搬进 .builda-agent/、重写 stub、删旧目录、接力原命令
+  # The binary lives in the legacy-named project dir .builda-godot-agent/: move it into .builda-agent/, rewrite the stub, delete the old dir, and relay the original command
   param([string[]]$OriginalArgs)
   $TargetRoot = Join-Path (Get-Location).Path $ProjectStateDir
   [Console]::Error.WriteLine("layout-migration=required (toolchain dir renamed $LegacyProjectStateDir -> $ProjectStateDir)")
@@ -1556,7 +1567,7 @@ function Invoke-LegacyProjectDirMigrate {
 }
 
 function Invoke-LegacyAuthMigrate {
-  # 凭证目录改名迁移：复制不删除——旧 CLI 仍读旧目录；uninstall --purge 两代一起清
+  # Credential dir rename migration: copy without deleting (old CLIs still read the old dir); uninstall --purge removes both generations
   if ($env:BUILDA_AUTH_DIR) { return }
   if (Test-Path $TokenPath) { return }
   $LegacyToken = Join-Path $LegacyAuthDir "token"
@@ -1675,13 +1686,15 @@ function Test-BuildaToolchainCurrent {
   }
   if (!(Test-WindowsPowerShellScriptBom (Join-Path $Root "builda.ps1"))) { return $false }
   if ((Read-Utf8Text (Join-Path $Root "VERSION")).Trim() -ne $ExpectedVersion) { return $false }
-  if ((Read-Utf8Text (Join-Path $Root "SKILL.md")) -notlike "*BuildaGame agent 工具链版本：$ExpectedVersion*") { return $false }
+  $SkillText = Read-Utf8Text (Join-Path $Root "SKILL.md")
+  # The English marker is authoritative; the Chinese marker stays in the Skill's HTML comment for Windows CLI 0.4.101 and earlier to verify, and is accepted here too.
+  if ($SkillText -notlike "*BuildaGame agent toolchain version: $ExpectedVersion*" -and $SkillText -notlike "*BuildaGame agent 工具链版本：$ExpectedVersion*") { return $false }
   $CmdText = Read-Utf8Text (Join-Path $Root "builda.cmd")
   return $CmdText -like '*%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe*' -and $CmdText -like '*"%~dp0builda.ps1" %**'
 }
 
-# 自动更新只升不降：远端版本更新时升级；版本相同但本地文件不完整时按同版修复；远端更旧（发布后 CDN 短暂
-# 缓存的旧版本号或线上回滚）时不自动降级，需要时用 builda update 显式同步。无法解析版本号时按不更新处理。
+# Auto-update only upgrades, never downgrades: upgrade when the remote version is newer; repair at the same version when versions match but local files are incomplete; when the remote is older (CDN briefly
+# caching an old version number after a release, or an online rollback) do not auto-downgrade; use builda update to sync explicitly when needed. Treat an unparsable version as no update.
 function Test-BuildaVersionNewer {
   param([string]$Candidate, [string]$Current)
   if ($Candidate -notmatch '^\d+\.\d+\.\d+$' -or $Current -notmatch '^\d+\.\d+\.\d+$') { return $false }
@@ -1728,7 +1741,7 @@ function Check-SelfUpdate {
     $SdkVersion = (Read-Utf8Lines $SdkVersionFile | Select-Object -First 1).Trim()
     Write-Host "sdk-version=$SdkVersion"
     try { Show-SdkGuidance } catch { Write-Host "sdk-guidance=missing-or-incomplete (restore pinned version before SDK tasks)" }
-    Write-Host "sdk-sync=independent (项目 SDK 独立锁定；显式升级: builda sdk upgrade)"
+    Write-Host "sdk-sync=independent (SDK version pinned per project; upgrade explicitly: builda sdk upgrade)"
     Write-OnlineStatus
   } elseif ((Test-Path "addons/builda") -or (Test-Path (Join-Path $ProjectStateDir "sdk/web"))) {
     Write-Host "sdk-version=unknown (missing $SdkVersionFile; run: builda sdk install)"
@@ -1994,7 +2007,7 @@ function Write-DefaultManifest {
     Write-Host "$Manifest already exists"
     return
   }
-  # engine 按目录判定写入 manifest；unknown 兜底 godot（与后端"空=godot"口径一致）
+  # engine is written to the manifest based on directory detection; unknown falls back to godot (consistent with the backend's "empty = godot" convention)
   $DetectedEngine = Get-EngineValue "."
   if ($DetectedEngine -notin @("godot", "h5", "unity")) { $DetectedEngine = "godot" }
   $Data = @{
@@ -2219,7 +2232,7 @@ function Assert-ManifestBrowserMinimums {
 
 function Set-ManifestSdkVersion {
   param([string]$File)
-  # sdkVersion 跟随项目 SDK 安装收据，草稿上报后进 release manifest sdk 契约；不要手工维护
+  # sdkVersion follows the project's SDK install receipt and goes into the release manifest sdk contract after draft upload; do not maintain it by hand
   if (!(Test-Path $SdkVersionFile)) { return }
   $V = (Read-Utf8Lines $SdkVersionFile | Select-Object -First 1).Trim()
   if (!$V) { return }
@@ -2359,8 +2372,8 @@ function New-BundleZip {
 
 function Test-SdkCompat {
   $Allowed = @(".gd", ".js", ".ts", ".tsx", ".jsx", ".html", ".cfg", ".tscn")
-  # Unity 工程目录整体跳过：旧 Builda SDK API 只存在于 GDScript/JS 时代，Unity 项目无迁移
-  # 负担；Library/Temp 文件量大，扫描徒增耗时与误报面。
+  # Skip Unity project dirs entirely: the old Builda SDK API only existed in the GDScript/JS era, so Unity projects have no migration
+  # burden; Library/Temp hold many files, and scanning only adds time and false positives.
   $Skip = @(".git", ".godot", ".builda-agent", ".builda-godot-agent", "addons", "node_modules", "__pycache__", "build", "dist", "target", "server-pack", "server_pack", "Library", "Temp", "Obj", "Logs", "Assets", "ProjectSettings", "Packages")
   $Errors = New-Object System.Collections.Generic.List[string]
   Get-ChildItem -Path "." -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
@@ -2407,8 +2420,8 @@ function Test-SdkCompat {
       if ($Code -match '\b(?:Builda|builda)\s*\.\s*init\s*\(') { $Errors.Add("${Rel}:${LineNo}: old Builda SDK API found; old Builda.init(...) is no longer part of the public SDK; use BuildaClient.builda.runtime_ready() when the game is ready") }
       if ($Code -match '\b(?:Builda|builda)\s*\.\s*event\s*\(') { $Errors.Add("${Rel}:${LineNo}: old Builda SDK API found; old event(...) analytics API is not part of the MVP SDK; remove it or keep analytics outside Builda") }
       if ($Code -match '\b(?:Builda|builda)\s*\.\s*track\s*\(') { $Errors.Add("${Rel}:${LineNo}: old Builda SDK API found; old track(...) analytics API is not part of the MVP SDK; remove it or keep analytics outside Builda") }
-      if ($Code -match '\bbackend_create\s*\(') { $Errors.Add("${Rel}:${LineNo}: backend_create(...) 当前不受支持；Builda Online 工具链入口：https://ai.builda.game/online/setup.md") }
-      if ($Code -match '\bBuilda\s*\.\s*backend\s*\.\s*create\s*\(') { $Errors.Add("${Rel}:${LineNo}: Builda.backend.create() 当前不受支持；Builda Online 工具链入口：https://ai.builda.game/online/setup.md") }
+      if ($Code -match '\bbackend_create\s*\(') { $Errors.Add("${Rel}:${LineNo}: backend_create(...) is not supported; Builda Online toolchain entry: https://ai.builda.game/online/setup.md") }
+      if ($Code -match '\bBuilda\s*\.\s*backend\s*\.\s*create\s*\(') { $Errors.Add("${Rel}:${LineNo}: Builda.backend.create() is not supported; Builda Online toolchain entry: https://ai.builda.game/online/setup.md") }
     }
   }
   if ($Errors.Count -gt 0) {
@@ -2439,7 +2452,7 @@ function Test-BundleZip {
   if (!$Zip -or !(Test-Path $Zip)) { throw "zip file required" }
   if (!$Engine) { $Engine = Get-ManifestEngine }
   if ($Engine -notin @("godot", "h5", "unity")) { throw "bundle-check engine must be godot, h5 or unity: $Engine" }
-  # 校验口径与后端 buildzip 一致（单一真相源：h5_bundle_spec.md 附表 B）
+  # Validation rules match the backend buildzip (single source of truth: h5_bundle_spec.md Appendix B)
   $GodotExt = @(".html", ".js", ".wasm", ".pck", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".json", ".css", ".txt", ".md")
   $Html5Ext = $GodotExt + @(".mjs", ".woff", ".woff2", ".ttf", ".otf", ".mp3", ".ogg", ".wav", ".m4a", ".mp4", ".webm", ".avif", ".gif", ".bin", ".dat", ".glsl", ".frag", ".vert", ".atlas", ".fnt", ".xml", ".gltf", ".glb", ".ktx2", ".basis")
   $UnityExt = $Html5Ext + @(".unityweb", ".data")
@@ -2459,7 +2472,7 @@ function Test-BundleZip {
     $BadExt = @()
     $FileCount = 0
     [int64]$TotalUncompressed = 0
-    # unity 的 Build/ 四件套（文件名带构建名变量，只做前缀+后缀匹配，附表 B.7）
+    # unity's Build/ four-file set (file names include a build-name variable; only prefix+suffix matching, Appendix B.7)
     $UnityFound = @{ "loader.js" = $false; "framework.js" = $false; "wasm" = $false; "data" = $false }
     foreach ($Entry in $Archive.Entries) {
       Assert-SafeZipEntryName $Entry.FullName
@@ -2506,8 +2519,8 @@ function Test-BundleZip {
           elseif ($Name -like "*.data" -or $Name -like "*.data.unityweb") { $UnityFound["data"] = $true }
         }
       }
-      # unity 的 StreamingAssets/ 跳过扩展名白名单（AssetBundle 惯例常无扩展名，附表 B.3）；
-      # 禁用清单照常执行
+      # unity's StreamingAssets/ skips the extension allowlist (AssetBundles conventionally often lack extensions, Appendix B.3);
+      # the denylist still applies
       $StreamingExempt = ($Engine -eq "unity") -and ($Name -like "StreamingAssets/*")
       $Ext = [System.IO.Path]::GetExtension($Name).ToLowerInvariant()
       if (!$StreamingExempt -and $AllowedExt -notcontains $Ext) { $BadExt += $Name }
@@ -2533,7 +2546,7 @@ function Test-BundleZip {
       throw 'index.html does not load builda-sdk.js. Add <script src="builda-sdk.js"></script> to the HTML head and rebuild.'
     }
     if ($Engine -eq "godot" -and $WebViewCompat) {
-      # Godot 专属：threads/COI 导出模板变量正则（h5 跳过，误报不可控）
+      # Godot only: threads/COI export template variable regex (skipped for h5; false positives uncontrollable)
       if ($IndexHtml -match '\bGODOT_THREADS_ENABLED\s*=\s*true\b' -or $IndexJs -match '\bGODOT_THREADS_ENABLED\s*=\s*true\b') {
         throw "Godot Web export has threads enabled. For WebView compatibility mode, set variant/thread_support=false and re-export."
       }
@@ -2546,12 +2559,12 @@ function Test-BundleZip {
     if ($Engine -eq "godot") {
       if ($WebViewCompat) { Write-Host "threads-check=webview-compatible" } else { Write-Host "threads-check=default-allowed" }
     }
-    # 非阻断提示：zip 超 50MiB 建议做包体优化；只提示、不改变服务端动态上传上限。
+    # Non-blocking hint: suggest bundle size optimization when the zip exceeds 50MiB; hint only, does not change the server's dynamic upload limit.
     [int64]$ZipBytes = (Get-Item $Zip).Length
     Write-Host "bundle-zip-bytes=$ZipBytes"
     if ($ZipBytes -gt 52428800) {
       $ZipMB = [math]::Floor($ZipBytes / 1048576)
-      [Console]::Error.WriteLine("bundle-size-hint=zip 已达 ${ZipMB}MiB（>50MiB）。必须评估分包/资源外置优化；建议阅读 $AgentBase/agent/releases/$Version/md_bundle_size.md（大资源外置 res/**、音频/字体/纹理瘦身）。该提示不阻断上传。")
+      [Console]::Error.WriteLine("bundle-size-hint=zip is ${ZipMB}MiB (>50MiB). You must evaluate asset splitting / moving assets out of the bundle; read .builda-agent/sdk-guidance/<sdk-version>/md_bundle_size.md (move large assets to res/**, slim down audio/fonts/textures). This hint does not block the upload.")
     }
   } finally {
     $Archive.Dispose()
@@ -2671,8 +2684,8 @@ function Invoke-DevServer {
     $WebRoot = $TempDir
   }
   if (!(Test-Path (Join-Path $WebRoot "index.html"))) { throw "dev web root missing index.html: $WebRoot" }
-  # assets 兜底源（audio/**、res/**，与 assets.zip 同布局）：CP 不用再把资源拷进构建目录，
-  # mock SDK 按页面目录解析出的 /audio/... /res/... 请求在 web root 缺文件时由这里补上
+  # assets fallback source (audio/**, res/**, same layout as assets.zip): the CP no longer needs to copy assets into the build dir;
+  # /audio/... /res/... requests the mock SDK resolves relative to the page dir are served from here when missing from the web root
   if (!$Assets -and ((Test-Path "assets\audio") -or (Test-Path "assets\res"))) { $Assets = "assets" }
   $AssetsRoot = ""
   $AssetsTempDir = $null
@@ -2687,13 +2700,13 @@ function Invoke-DevServer {
       $AssetsRoot = $AssetsTempDir
     }
   }
-  # mock SDK/外壳兜底查找顺序：web 导出目录 → Godot addon → HTML5 工具链落点（$ProjectStateDir/sdk/web/）
+  # mock SDK/shell fallback lookup order: web export dir -> Godot addon -> HTML5 toolchain location ($ProjectStateDir/sdk/web/)
   $ProjectSdkJs = @(
     (Join-Path (Get-Location) "addons\builda\web\builda-sdk.js"),
     (Join-Path (Get-Location) (Join-Path $ProjectStateDir "sdk\web\builda-sdk.js"))
   ) | Where-Object { Test-Path $_ } | Select-Object -First 1
   $SdkPresent = (Test-Path (Join-Path $WebRoot "addons\builda\web\builda-sdk.js")) -or (Test-Path (Join-Path $WebRoot "builda-sdk.js")) -or [bool]$ProjectSdkJs
-  # 测试外壳随 mock SDK 装进项目，web 导出里不会有；从项目目录兜底 serve
+  # The test shell is installed into the project with the mock SDK and is not in the web export; serve it from the project dir as a fallback
   $ProjectShell = @(
     (Join-Path (Get-Location) "addons\builda\web\builda-dev-shell.html"),
     (Join-Path (Get-Location) (Join-Path $ProjectStateDir "sdk\web\builda-dev-shell.html"))
@@ -2820,7 +2833,7 @@ function Invoke-DevServer {
       }
     }
     if ($AssetsRoot -and ($Path -match '^/(audio|res)/')) {
-      # assets 兜底：web root 没有该文件时从项目 assets 源伺服（Test-DevPathWithinRoot 防 .. 逃逸）
+      # assets fallback: when the web root lacks the file, serve it from the project assets source (Test-DevPathWithinRoot guards against .. escape)
       $RelAsset = $Path.TrimStart("/") -replace "/", [System.IO.Path]::DirectorySeparatorChar
       $InWeb = Join-Path $WebRoot $RelAsset
       if (!(Test-Path -LiteralPath $InWeb)) {
@@ -2899,7 +2912,7 @@ function Invoke-DevServer {
           $Reply = Get-DevResponse $Path
           Send-DevHttpListenerResponse $Context $Reply ($Context.Request.HttpMethod -eq "HEAD")
         } catch {
-          # 浏览器取消请求等单个连接的异常不能让整个 dev 服务退出。
+          # An exception on a single connection, such as a browser-cancelled request, must not take down the whole dev server.
           [Console]::Error.WriteLine("dev-request-warning=$($_.Exception.GetType().FullName): $($_.Exception.Message)")
           try { $Context.Response.Abort() } catch {}
         }
@@ -2925,7 +2938,7 @@ function Invoke-DevServer {
           $Reply = Get-DevResponse $Path
           Send-DevTcpResponse $ClientConnection $Reply ($Method -eq "HEAD")
         } catch {
-          # 浏览器取消请求、读超时等只影响这一个连接，不能让整个 dev 服务退出。
+          # Browser-cancelled requests, read timeouts, etc. only affect this one connection and must not take down the whole dev server.
           [Console]::Error.WriteLine("dev-request-warning=$($_.Exception.GetType().FullName): $($_.Exception.Message)")
         } finally {
           $ClientConnection.Close()
@@ -2980,7 +2993,7 @@ function Test-AssetsZip {
     Write-Host "assets-bytes=$Total"
     if ($PckCount -gt 0) {
       Write-Host "assets-pck=$PckCount"
-      Write-Host "assets-pck-note=服务端会深度校验 pck 必须 data-only：不含 .gd/.gdc/.gdns/.cs 等脚本、原生库、加密内容，场景/资源不得引用脚本；含脚本的 pck 会在上传时整包被拒。"
+      Write-Host "assets-pck-note=the server deeply verifies that the pck is data-only: no scripts such as .gd/.gdc/.gdns/.cs, no native libraries or encrypted content, and scenes/resources must not reference scripts; a pck containing scripts is rejected as a whole on upload."
     }
   } finally {
     $Archive.Dispose()
@@ -3198,10 +3211,10 @@ function Install-SdkDirectorySet {
   }
 }
 
-# ---- Builda Online：联机交付物随同一个 SDK 版本锁安装 ----
-# 基础 manifest 的 online 块钉住同版本 Online 不可变 manifest；本 CLI 只负责校验并安装联机 Skill
-# 与其自带的部署客户端 .builda-online\bin，再把客户端 SDK / Room SDK / Mock 的安装交给
-# `builda-online install`，它同样只读该版本的不可变快照。
+# ---- Builda Online: multiplayer deliverables are installed under the same SDK version lock ----
+# The base manifest's online block pins the immutable Online manifest of the same version; this CLI only verifies and installs the multiplayer Skill
+# and its bundled deploy client .builda-online\bin, then hands installation of the client SDK / Room SDK / Mock to
+# `builda-online install`, which likewise reads only that version's immutable snapshot.
 $OnlineStateDir = ".builda-online"
 $OnlineSkillDir = ".agents/skills/builda-online"
 
@@ -3333,7 +3346,7 @@ function Install-OnlineDelivery {
   }
 }
 
-# 报告联机交付物与 SDK 版本锁的关系；不安装、不联网。
+# Reports how the multiplayer deliverables relate to the SDK version lock; does not install or go online.
 function Write-OnlineStatus {
   $Record = Join-Path $OnlineStateDir "installation.json"
   if (!(Test-Path $Record)) { return }
@@ -3359,7 +3372,7 @@ function Write-OnlineStatus {
 }
 
 function Install-WebSdk {
-  # HTML5 项目：mock SDK/d.ts/dev-shell/mic worker 装到 $ProjectStateDir/sdk/web/
+  # HTML5 projects: mock SDK/d.ts/dev-shell/mic worker are installed to $ProjectStateDir/sdk/web/
   $Download = Get-VerifiedSdkArchive "web/latest.json" "builda-sdk-web.zip"
   $Stage = Join-Path $Download.Root "stage/web"
   $Committed = $false
@@ -3381,9 +3394,9 @@ function Install-WebSdk {
   Write-Host "sdk-version=$($Download.Version)"
   Write-Host "sdk-installed=$Dst"
   Write-Host "sdk-engine=h5"
-  Write-Host 'sdk-next-1=在游戏 HTML 的 <head> 里引用根路径 SDK：<script src="builda-sdk.js"></script>（构建产物 index.html 必须带上该引用；zip 不内嵌 SDK，正式运行时由宿主按 manifest sdk 契约注入）'
-  Write-Host "sdk-next-2=本地调试：builda dev --web <构建目录或 zip>（dev server 自动从 $Dst 兜底 serve mock SDK 与测试外壳）"
-  Write-Host "sdk-next-3=TypeScript 类型提示：把 $Dst/builda-sdk.d.ts 加进 tsconfig include（可选）"
+  Write-Host 'sdk-next-1=reference the root-path SDK in the game HTML <head>: <script src="builda-sdk.js"></script> (the built index.html must keep this reference; the zip does not embed the SDK, and the host injects it at runtime per the manifest sdk contract)'
+  Write-Host "sdk-next-2=local debugging: builda dev --web <build dir or zip> (the dev server automatically falls back to serving the mock SDK and test shell from $Dst)"
+  Write-Host "sdk-next-3=TypeScript type hints: add $Dst/builda-sdk.d.ts to tsconfig include (optional)"
   Install-OnlineDelivery $Download.Version
   try {
     Test-Sdk
@@ -3394,9 +3407,9 @@ function Install-WebSdk {
 }
 
 function Install-UnitySdk {
-  # Unity 项目：C# 包装层/jslib 装 Assets/Builda/，Builda WebGL 模板装 Assets/WebGLTemplates/
-  # （Unity 硬性要求的模板位置），web 内核 mock 落 $ProjectStateDir/sdk/web/（与 h5 同构）。
-  # 三个落点都归 SDK 所有，升级整体覆盖。
+  # Unity projects: C# wrapper/jslib go to Assets/Builda/, the Builda WebGL template goes to Assets/WebGLTemplates/
+  # (template location mandated by Unity), and the web core mock goes to $ProjectStateDir/sdk/web/ (same as h5).
+  # All three locations are owned by the SDK and overwritten wholesale on upgrade.
   $Download = Get-VerifiedSdkArchive "unity/latest.json" "builda-sdk-unity.zip"
   $TmpDir = Join-Path $Download.Root "stage"
   $Committed = $false
@@ -3431,15 +3444,15 @@ function Install-UnitySdk {
   } finally {
     if ($Committed) { Remove-Item -Recurse -Force -LiteralPath $Download.Root -ErrorAction SilentlyContinue }
   }
-  # BuildaMic 分析 Worker 归项目所有（L2 模板，CP 可魔改算法）：升级不覆盖已存在目录；
-  # 恢复默认 = 删除 Assets\StreamingAssets\builda-mic 后重跑 sdk install
+  # The BuildaMic analysis Worker is owned by the project (L2 template; the CP may modify the algorithm): upgrades do not overwrite an existing dir;
+  # to restore the default, delete Assets\StreamingAssets\builda-mic and rerun sdk install
   Show-SdkGuidance
   Write-Host "sdk-version=$($Download.Version)"
   Write-Host "sdk-installed=Assets/Builda"
   Write-Host "sdk-engine=unity"
-  Write-Host "sdk-next-1=Player Settings > Resolution and Presentation > WebGL Template 选 Builda（模板已装到 Assets/WebGLTemplates/Builda/，head 内已引用 builda-sdk.js）"
-  Write-Host "sdk-next-2=Player Settings > Publishing Settings：Compression Format 选 Brotli 并勾选 Decompression Fallback（推荐），或选 Disabled；开压缩但不勾 Fallback 的产物会被上传校验拒绝"
-  Write-Host "sdk-next-3=本地调试：builda dev --web <WebGL 构建目录或 zip>（dev server 自动从 $ProjectStateDir/sdk/web 兜底 serve mock SDK 与测试外壳）"
+  Write-Host "sdk-next-1=Player Settings > Resolution and Presentation > WebGL Template: choose Builda (the template is installed at Assets/WebGLTemplates/Builda/ and already references builda-sdk.js in head)"
+  Write-Host "sdk-next-2=Player Settings > Publishing Settings: set Compression Format to Brotli and check Decompression Fallback (recommended), or choose Disabled; builds with compression on but Fallback unchecked are rejected by upload validation"
+  Write-Host "sdk-next-3=local debugging: builda dev --web <WebGL build dir or zip> (the dev server automatically falls back to serving the mock SDK and test shell from $ProjectStateDir/sdk/web)"
   Install-OnlineDelivery $Download.Version
   try {
     Test-Sdk
@@ -3453,7 +3466,7 @@ function Install-Sdk {
   if (Test-Path $SdkVersionFile) {
     if (!(Test-Path $SdkVersionFile -PathType Leaf) -or ((Get-Item $SdkVersionFile).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { throw "SDK pin must be a regular file" }
   }
-  # 引擎分流：godot 装 addon（现有全流程）；h5 装 web 内核；unity 装 C# 包装层 + 模板 + web 内核
+  # Engine routing: godot installs the addon (existing full flow); h5 installs the web core; unity installs the C# wrapper + template + web core
   if ((Get-EngineValue ".") -eq "h5") {
     Install-WebSdk
     return
@@ -3732,7 +3745,7 @@ function Test-UnitySdk {
     Write-Host "sdk-upgrade-hint=run builda sdk install to record the installed SDK version"
   }
   Test-SdkCompat
-  # 分析 Worker 项目所有，缺失只提示不判失败（BuildaMic 可选能力）
+  # The analysis Worker is owned by the project; if missing, only hint and do not fail (BuildaMic is an optional capability)
   if (Test-Path "Assets/StreamingAssets/builda-mic/builda-mic-worker.js") {
     Write-Host "sdk-mic=Assets/StreamingAssets/builda-mic user-owned"
   } else {
@@ -3743,8 +3756,8 @@ function Test-UnitySdk {
   Write-Host "sdk-unity=Assets/Builda"
 }
 
-# Get-SdkMockPath 当前项目 mock SDK 的落点（引擎分流；smoke 用；
-# h5/unity 都落 $ProjectStateDir/sdk/web/，无 addons 时自动命中）
+# Get-SdkMockPath: location of the current project's mock SDK (routed by engine; used by smoke;
+# h5/unity both go to $ProjectStateDir/sdk/web/, matched automatically when there are no addons)
 function Get-SdkMockPath {
   $WebMock = Join-Path $ProjectStateDir "sdk/web/builda-sdk.js"
   if ((Test-Path $WebMock) -and !(Test-Path "addons/builda/web/builda-sdk.js")) { return $WebMock }
@@ -4647,9 +4660,9 @@ function Cancel-UploadSession {
   if ($Response.Status -ne 204) { throw "cancel upload session failed: HTTP $($Response.Status): $($Response.Body)" }
 }
 
-# ── builda gen：AI 生成素材（ADR 0047）─────────────────────────────────────────
-# 与 Unix CLI 同一契约：stdout 为稳定 key=value 行（或 --json 单个对象），进度写 stderr，退出码见 Show-GenUsage。
-# 真相源在 Builda 平台；本地 .builda-agent/gen/ 只是可删除台账（gitignore），用于重跑续上原任务。
+# ── builda gen: AI-generated assets (ADR 0047) ─────────────────────────────────────────
+# Same contract as the Unix CLI: stdout is stable key=value lines (or a single object with --json), progress goes to stderr, exit codes see Show-GenUsage.
+# The source of truth is the Builda platform; the local .builda-agent/gen/ is only a deletable ledger (gitignored), used to resume the original task on rerun.
 $GenDir = Join-Path $Root "gen"
 $GenDefaultWait = 100
 $script:GenTaskId = ""
@@ -4657,12 +4670,12 @@ $script:GenOutArg = ""
 $script:GenJson = $false
 $script:GenResult = New-Object System.Collections.ArrayList
 $GenCli = ".\.builda-agent\builda.cmd"
-# 能量不足时原样转告用户的充值路径（面向用户的中文，agent 不要改写）。
-$GenTopupHint = "在 Builda App 里做一个 AI 游戏，然后连续点击右上角按钮 3 次，进入「能量中心」充值"
+# Top-up path relayed verbatim to the user when Credits run out (user-facing text; the agent must not rewrite it).
+$GenTopupHint = "In the Builda App, create an AI game, then tap the top-right button 3 times in a row to open the Credits page and top up"
 
 function Show-GenUsage {
   @'
-builda gen — generate game assets with Builda AI. Every successful generation consumes the user's Builda energy
+builda gen — generate game assets with Builda AI. Every successful generation consumes the user's Builda Credits
 (charged after completion by actual usage; failed or rejected tasks cost nothing).
 
 Usage:
@@ -4720,7 +4733,7 @@ function ConvertTo-GenCamel {
   return [regex]::Replace($Key, '-([a-z])', { param($m) $m.Groups[1].Value.ToUpper() })
 }
 
-# ConvertTo-GenParamsObject "k=v;k=v" → 对象，数字值转成整数。
+# ConvertTo-GenParamsObject "k=v;k=v" -> object, numeric values converted to integers.
 function ConvertTo-GenParamsObject {
   param([string]$Value)
   $Out = [ordered]@{}
@@ -4744,7 +4757,7 @@ function Exit-Gen {
       $Value = $Pair[1]
       $Number = 0L
       $Typed = if ($Value -match '^-?\d+$' -and [long]::TryParse($Value, [ref]$Number)) { $Number } else { $Value }
-      # 让 JSON 类型可直接用：是/否 → 布尔，running → 数组，params → 对象。
+      # Make JSON types directly usable: yes/no -> boolean, running -> array, params -> object.
       if ($Key -in @("reused", "charged", "newGeneration", "newIgnored", "energySettled") -and $Value -in @("yes", "no")) { $Typed = ($Value -eq "yes") }
       elseif ($Key -eq "running") { $Typed = @($Value -split "," | Where-Object { $_ }) }
       elseif ($Key -eq "params") { $Typed = ConvertTo-GenParamsObject $Value }
@@ -4753,7 +4766,7 @@ function Exit-Gen {
         if (!$Obj.Contains($ListKey)) { $Obj[$ListKey] = New-Object System.Collections.ArrayList }
         [void]$Obj[$ListKey].Add($Typed)
       } elseif ($Obj.Contains($Key) -and $Key -eq "hint") {
-        $Obj[$Key] = [string]$Obj[$Key] + "; " + $Typed  # hint 始终是一个字符串
+        $Obj[$Key] = [string]$Obj[$Key] + "; " + $Typed  # hint is always a single string
       } else {
         $Obj[$Key] = $Typed
       }
@@ -4763,8 +4776,8 @@ function Exit-Gen {
   exit $Code
 }
 
-# 用法：Stop-Gen <exit> <error> [hint] [next]。hint= 是说明；next= 只放可以原样执行的命令（没有就不输出）。
-# 生成命令在还没有任务时出错，一律带 charged=no：没有提交、没有扣费。
+# Usage: Stop-Gen <exit> <error> [hint] [next]. hint= is an explanation; next= only holds commands that can be run verbatim (omitted if none).
+# When a generation command fails before any task exists, always include charged=no: nothing submitted, nothing charged.
 function Stop-Gen {
   param([int]$Code, [string]$ErrorKey, [string]$Hint = "", [string]$Next = "")
   if ($script:GenIsGenerate -and !$script:GenTaskId) { Add-GenResultOnce "charged" "no" }
@@ -4780,26 +4793,26 @@ function Add-GenResultOnce {
   Add-GenResult $Key $Value
 }
 
-# Format-GenArg 让 next= 可原样粘贴执行：安全字符原样，其余加双引号（保留 UTF-8）。
+# Format-GenArg makes next= paste-and-run: safe characters as-is, others wrapped in double quotes (UTF-8 preserved).
 function Format-GenArg {
   param([string]$Value)
   if ($Value -match '^[A-Za-z0-9._/:@+\\-]+$') { return $Value }
   return '"' + $Value.Replace('"', '\"') + '"'
 }
 
-# Get-GenRetryHint 按阶段给重试建议：还没有任务时明确"未创建任务、未扣费"，已有任务时才提示续上原任务。
+# Get-GenRetryHint gives retry advice by stage: before a task exists, state clearly "no task created, not charged"; only when a task exists suggest resuming it.
 function Get-GenRetryHint {
   if (!$script:GenTaskId) { return "no task was created and nothing was charged; wait about a minute, then run the same command again" }
   return "the task is still on the platform (no double charge); wait about a minute, then run next"
 }
 
-# Get-GenRetryNext 已有任务时给出可执行的续等命令；还没有任务时没有命令可给（原样重跑即可）。
+# Get-GenRetryNext gives a runnable resume-wait command when a task exists; before a task exists there is no command to give (just rerun as-is).
 function Get-GenRetryNext {
   if ($script:GenTaskId) { return (Get-GenNextWait) }
   return ""
 }
 
-# Stop-GenParam 本地参数错误统一格式：param / allowed / charged=no，与平台 limits 校验一致。
+# Stop-GenParam: unified format for local parameter errors: param / allowed / charged=no, consistent with platform limits validation.
 function Stop-GenParam {
   param([string]$Param, [string]$Allowed, [string]$ErrorKey = "invalid-params", [string]$Hint = "")
   Add-GenResult "param" $Param
@@ -4810,8 +4823,8 @@ function Stop-GenParam {
   Stop-Gen 2 $ErrorKey $Hint
 }
 
-# Get-GenValue 取 flag 的值；缺值或值本身像选项（-o --json、--prompt --dry-run）都按参数错误退出，
-# 绝不能带着错位的参数去提交扣费。真要以 - 开头的值时用 --opt=value 写法。
+# Get-GenValue gets a flag's value; a missing value or a value that looks like an option (-o --json, --prompt --dry-run) exits as a parameter error;
+# never submit (and charge) with misaligned arguments. For values that really start with -, use the --opt=value form.
 function Get-GenValue {
   param([string[]]$Arguments, [int]$Index)
   $Flag = $Arguments[$Index]
@@ -4822,7 +4835,7 @@ function Get-GenValue {
   return $Arguments[$Index + 1]
 }
 
-# Assert-GenOut 生成物只能落在项目内：拒绝绝对路径、越出项目的 ..，以及工具链与 Git 目录。
+# Assert-GenOut: outputs must stay inside the project: reject absolute paths, .. escaping the project, and toolchain and Git dirs.
 function Assert-GenOut {
   if (!$script:GenOutArg) { return }
   $Parts = New-Object System.Collections.ArrayList
@@ -4834,7 +4847,7 @@ function Assert-GenOut {
   $First = if ($Parts.Count -gt 0) { ([string]$Parts[0]).ToLowerInvariant() } else { "" }
   $Invalid = [System.IO.Path]::IsPathRooted($script:GenOutArg) -or $script:GenOutArg.StartsWith("~") -or $Parts.Count -eq 0 -or
     $First -in @("..", ".builda-agent", ".git")
-  # PowerShell 5.1 无法可靠解析软链接目标：已存在的路径段只要是软链接/junction 就拒绝，保证落在项目内。
+  # PowerShell 5.1 cannot reliably resolve symlink targets: reject any existing path segment that is a symlink/junction, ensuring it stays inside the project.
   $Probe = (Get-Location).Path
   foreach ($Seg in $Parts) {
     if ($Invalid) { break }
@@ -4848,7 +4861,7 @@ function Assert-GenOut {
   }
 }
 
-# Get-GenOutConflict 返回会被新生成覆盖的已有文件（没有冲突返回空串）；目录模式文件名含任务 id，不会冲突。
+# Get-GenOutConflict returns existing files that new output would overwrite (empty string if none); in dir mode file names include the task id, so no conflict.
 function Get-GenOutConflict {
   param([string]$GenType, [int]$Count = 1)
   $Out = $script:GenOutArg
@@ -4883,7 +4896,7 @@ function Get-GenOutConflict {
   return ""
 }
 
-# Get-GenTypeParams 校验类型专属参数，返回规范化 extra（按 key 排序的 "k=v;k=v"，与 Unix CLI 逐字节一致）。
+# Get-GenTypeParams validates type-specific params and returns normalized extra ("k=v;k=v" sorted by key, byte-identical to the Unix CLI).
 function Get-GenTypeParams {
   param([string]$GenType, [string]$Aspect, [string]$Count, [string]$Background, [string]$Faces)
   $Parts = New-Object System.Collections.ArrayList
@@ -4923,7 +4936,7 @@ function Get-GenSha256 {
   } finally { $Sha.Dispose() }
 }
 
-# 与 Get-BuildaFileSha256 同一写法：直接用 .NET 流式计算，不依赖 PowerShell 模块自动加载。
+# Same approach as Get-BuildaFileSha256: stream-compute directly with .NET, without relying on PowerShell module auto-loading.
 function Get-GenFileMd5 {
   param([string]$Path)
   $FullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
@@ -4968,7 +4981,7 @@ function Update-GenLedgerTask {
       foreach ($F in @($Record["files"]) + @($Fields[$K])) { if ($F -and !$Merged.Contains([string]$F)) { [void]$Merged.Add([string]$F) } }
       $Record[$K] = @($Merged)
     } elseif ($K -eq "status" -and [string]$Record["status"] -in @("done", "failed") -and [string]$Fields[$K] -notin @("done", "failed")) {
-      # 状态只前进：已完成/已失败的任务不会因为重跑或超时退回 pending/running（用于判断本次是否是复用）。
+      # Status only moves forward: done/failed tasks never revert to pending/running on rerun or timeout (used to tell whether this run is a reuse).
       continue
     } else {
       $Record[$K] = $Fields[$K]
@@ -5020,7 +5033,7 @@ function Assert-GenAuth {
   if (!(Test-Path $TokenPath)) { Stop-Gen 3 "auth-required" "authorize first (the user approves in the browser), then rerun this command" "$GenCli auth" }
 }
 
-# Invoke-GenApi 成功返回解析后的对象；失败按契约退出（与 Unix gen_fail_body 同一码表）。
+# Invoke-GenApi returns the parsed object on success; on failure exits per contract (same code table as Unix gen_fail_body).
 function Invoke-GenApi {
   param([string]$Method, [string]$Path, [byte[]]$BodyBytes = @(), [string]$ContentType = "application/json")
   try {
@@ -5029,7 +5042,7 @@ function Invoke-GenApi {
     if ([string]$_.Exception.Message -like "BUILDA_AUTH_REJECTED*") { Stop-Gen 3 "auth-required" "authorize first (the user approves in the browser), then rerun this command" "$GenCli auth" }
     Stop-Gen 9 "network-error" "check the network; $(Get-GenRetryHint)" (Get-GenRetryNext)
   }
-  # 服务端每个响应都带 X-Request-Id：出错时输出给用户/agent，反馈问题时凭它直接定位后端日志。
+  # Every server response carries X-Request-Id: print it to the user/agent on error so feedback can locate backend logs directly.
   $script:GenRequestId = ""
   if ($Response.Headers) { foreach ($K in @($Response.Headers.Keys)) { if ($K -ieq "X-Request-Id") { $script:GenRequestId = [string]$Response.Headers[$K] } } }
   if ($Response.Status -eq 0) { Stop-Gen 9 "network-error" "check the network; $(Get-GenRetryHint)" (Get-GenRetryNext) }
@@ -5043,18 +5056,18 @@ function Stop-GenForResponse {
   param([int]$Status, $Body)
   $Code = if ($Body -and $null -ne $Body.code) { [string]$Body.code } else { "" }
   $Msg = if ($Body -and $Body.msg) { [string]$Body.msg } else { "" }
-  # 平台把自己的 reqId 拼在 message 里：拆出来单独给，避免和 Builda 的 request-id 混淆。
+  # The platform embeds its own reqId in message: split it out and give it separately to avoid confusion with Builda's request-id.
   $PlatformReq = ""
   if ($Msg -match '\s*reqId=(\S+)') { $PlatformReq = $Matches[1]; $Msg = ($Msg -replace '\s*reqId=\S+', '').Trim() }
   if ($Msg) { Add-GenResult "message" $Msg }
   if ($Code) { Add-GenResult "code" $Code }
-  # request-id 是反馈问题时要给的编号；platform-request-id 是平台内部编号，仅供对账。
+  # request-id is the ID to give when reporting issues; platform-request-id is the platform's internal ID, for reconciliation only.
   if ($script:GenRequestId) { Add-GenResult "request-id" $script:GenRequestId }
   if ($PlatformReq) { Add-GenResult "platform-request-id" $PlatformReq }
   switch ($Code) {
     "140006" {
       Add-GenResult "energy-topup" $GenTopupHint
-      Stop-Gen 4 "insufficient-energy" "tell the user their Builda energy is not enough and relay the energy-topup line to them word for word; do not retry or split the request"
+      Stop-Gen 4 "insufficient-energy" "tell the user their Builda Credits are not enough and relay the energy-topup steps to them without changing them; do not retry or split the request"
     }
     "140007" { Stop-Gen 5 "content-rejected" "rewrite the prompt without sensitive content and run again; if it fails again, ask the user" }
     "140101" { Stop-Gen 1 "not-available" "this model or generation type is not open for this account yet" "$GenCli gen models" }
@@ -5168,7 +5181,7 @@ function Invoke-GenGenerate {
   if ($Count -match '^\d+$') { $CountN = [int]$Count }
   foreach ($F in $Refs) {
     if (!(Test-Path -LiteralPath $F -PathType Leaf)) { Stop-GenParam "--ref" "an existing png/jpg/webp file" "reference-not-found" "reference file not found: $F" }
-    # 按文件内容（文件头）判断，而不是扩展名：假 png 在本地就拦下，不必上传。
+    # Detect by file content (file header) rather than extension: a fake png is caught locally without uploading.
     $RefItem = Get-Item -LiteralPath $F
     if ($RefItem.Length -gt 10MB -or !(Get-GenImageKind $F)) {
       Stop-GenParam "--ref" "png,jpg,webp image content up to 10 MiB" "reference-invalid" "not a png/jpg/webp image (checked by file content) or larger than 10 MiB: $F"
@@ -5176,7 +5189,7 @@ function Invoke-GenGenerate {
   }
   Assert-GenAuth
   if ($DryRun) {
-    # dry-run 与真正提交结论一致：会产生新扣费且目标文件已存在时，同样以 8 拒绝。
+    # dry-run reaches the same verdict as a real submission: when a new charge would occur and the target file exists, likewise reject with 8.
     $Fresh = Test-GenRequestFresh $GenType $Model $Prompt $New $Extra $Refs.Count
     Assert-GenNoConflict $GenType $CountN $Force $Fresh
   }
@@ -5198,8 +5211,8 @@ function Invoke-GenGenerate {
   Wait-GenTask $GenType $WaitS $Force
 }
 
-# Test-GenRequestFresh 这次请求是否会产生新扣费：没有记录、已结束且 --new、或上次同参请求失败 → 新请求。
-# 带参考图时本地无法预知 refId，按新请求处理。
+# Test-GenRequestFresh: whether this request would incur a new charge: no record, finished with --new, or the last same-param request failed -> new request.
+# With reference images the refId cannot be predicted locally, so treat as a new request.
 function Test-GenRequestFresh {
   param([string]$GenType, [string]$Model, [string]$Prompt, [bool]$New, [string]$Extra, [int]$RefCount)
   if ($RefCount -gt 0) { return $true }
@@ -5213,7 +5226,7 @@ function Test-GenRequestFresh {
   return ($Rec -and $Rec.status -eq "failed")
 }
 
-# Assert-GenNoConflict 会产生新扣费时先检查目标文件，冲突就在提交前拒绝（报出真正冲突的文件）。
+# Assert-GenNoConflict: when a new charge would occur, check target files first and reject before submitting on conflict (reporting the actual conflicting files).
 function Assert-GenNoConflict {
   param([string]$GenType, [int]$Count, [bool]$Force, [bool]$Fresh)
   if (!$Fresh -or $Force) { return }
@@ -5223,7 +5236,7 @@ function Assert-GenNoConflict {
   }
 }
 
-# Get-GenImageKind 按文件头识别 png/jpg/webp，不是图片返回空串。
+# Get-GenImageKind identifies png/jpg/webp by file header; returns an empty string if not an image.
 function Get-GenImageKind {
   param([string]$Path)
   $Stream = [System.IO.File]::OpenRead($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
@@ -5235,7 +5248,7 @@ function Get-GenImageKind {
   return ""
 }
 
-# Assert-GenLimits 用平台 gen models 返回的 limits 在提交前校验；越界输出 param/allowed 并以参数错误退出。
+# Assert-GenLimits validates before submitting using the limits returned by platform gen models; out-of-range prints param/allowed and exits with a parameter error.
 function Assert-GenLimits {
   param($Pick, [string]$Extra, [int]$RefCount, [int]$PromptLen)
   $Lim = $Pick.limits
@@ -5293,8 +5306,8 @@ function Assert-GenLimits {
 
 function Invoke-GenBudget {
   param([string]$GenType, [string]$Model, [bool]$DryRun, [string]$MaxEnergy, [int]$Count = 1, [string]$Extra = "", [int]$RefCount = 0, [int]$PromptLen = 0)
-  # 每次生成前都拿平台 limits 做本地校验：dry-run 与真正提交给出同样的结论，越界参数不会走到提交。
-  # dry-run 先报余额：即使模型未开放，agent 也能一次知道"没开放"和"余额多少"。
+  # Before every generation, validate locally against platform limits: dry-run and real submission reach the same verdict, and out-of-range params never get submitted.
+  # dry-run reports the balance first: even if the model is not available, the agent learns both "not available" and "balance" in one go.
   $BalanceValue = 0L
   if ($DryRun) {
     $Balance = Invoke-GenApi "GET" "/api/v1/agent/gen/balance"
@@ -5311,7 +5324,7 @@ function Invoke-GenBudget {
   $Pick = $null
   if ($Model) {
     $Pick = $TypeModels | Where-Object { $_.model -eq $Model } | Select-Object -First 1
-    # 模型名写错或用了别的类型的模型：按参数错误报，别让 agent 误以为平台没开放。
+    # Model name misspelled or a model of another type used: report as a parameter error so the agent does not think the platform has not enabled it.
     if (!$Pick) {
       Add-GenResult "message" "model $Model is not available for $GenType"
       Stop-GenParam "--model" (@($TypeModels | ForEach-Object { $_.model }) -join ",")
@@ -5344,7 +5357,7 @@ function Invoke-GenBudget {
     }
     if ($BalanceValue -lt $Est) {
       Add-GenResult "energy-topup" $GenTopupHint
-      Stop-Gen 4 "insufficient-energy" "the balance is below this estimate; relay the energy-topup line to the user word for word before generating"
+      Stop-Gen 4 "insufficient-energy" "the balance is below this estimate; relay the energy-topup steps to the user without changing them before generating"
     }
     Exit-Gen 0
   }
@@ -5356,7 +5369,7 @@ function Invoke-GenBudget {
 
 function Invoke-GenSubmit {
   param([string]$GenType, [string]$Model, [string]$Prompt, [bool]$New, [bool]$Force, [string]$Extra, [int]$Count, [string[]]$RefIds)
-  # 派生规则与 Unix CLI 逐字节一致：NUL 分隔的纯字符串；类型专属参数只在非空时追加（audio 与 0.4.74 一致）。
+  # Derivation rules byte-identical to the Unix CLI: NUL-separated plain strings; type-specific params appended only when non-empty (audio consistent with 0.4.74).
   $Fields = @("builda-gen-v1", $GenType, $Model, $Prompt, ($RefIds -join ","))
   if ($Extra) { $Fields += $Extra }
   $BaseId = Get-GenSha256 ($Fields -join "`0")
@@ -5370,13 +5383,13 @@ function Invoke-GenSubmit {
     $PrevFailed = [bool]($PrevRec -and $PrevRec.status -eq "failed")
   }
   if (($New -or $PrevFailed) -and (!$State -or $Done)) {
-    # --new，或上次同参请求已失败（失败不扣费）：派生新 nonce 重新提交，不再复用失败结果。
+    # --new, or the last same-param request failed (failures are not charged): derive a new nonce and resubmit instead of reusing the failed result.
     $Nonce = [System.Guid]::NewGuid().ToString("N")
     $Done = $false
     $Fresh = $true
     if ($PrevFailed) { Add-GenResult "hint" "the previous identical request failed (not charged); submitted it again as a new generation" }
   } elseif ($State -and $New) {
-    # 同参请求还在进行中：--new 不生效，续上原任务，必须明说。
+    # A same-param request is still in progress: --new has no effect; resume the original task and say so explicitly.
     Add-GenResult "new-ignored" "yes"
     Add-GenResult "hint" "the identical earlier request (task $PrevTask) is still running, so --new was not applied and this run continues it; run --new again after it finishes for another take"
     Write-GenProgress "--new ignored: the identical earlier request is still running"
@@ -5397,14 +5410,14 @@ function Invoke-GenSubmit {
   $Body = [ordered]@{ requestId = $RequestId; genType = $GenType }
   if ($Model) { $Body["model"] = $Model }
   $Body[$GenType] = $Params
-  # 会产生新扣费的请求先检查目标文件：冲突时在提交前拒绝，不能先扣费再报文件已存在。
+  # Requests that would incur a new charge check target files first: reject before submitting on conflict; never charge first and then report the file exists.
   Assert-GenNoConflict $GenType $Count $Force $Fresh
   Write-GenProgress "step=submit type=$GenType"
   $Resp = Invoke-GenApi "POST" "/api/v1/agent/gen/tasks" (Get-GenJsonBytes $Body)
   if (!$Resp -or !$Resp.taskId) { Stop-Gen 1 "submit-failed" "the platform returned no task id; report it to the user with the request-id" }
   $Resubmitted = $false
   if ($Resp.status -eq "failed" -and !$New) {
-    # 平台重放了一个已失败的同参任务（本地台账缺失时）：失败不扣费，自动换 nonce 重新提交一次。
+    # The platform replayed a failed same-param task (when the local ledger is missing): failures are not charged; automatically resubmit once with a new nonce.
     Add-GenResult "hint" "the platform returned an earlier failed attempt of this request (not charged); submitted it again as a new generation"
     $Nonce = [System.Guid]::NewGuid().ToString("N")
     $Body["requestId"] = Get-GenSha256 ("builda-gen-req-v1`0$BaseId`0$Nonce")
@@ -5419,7 +5432,7 @@ function Invoke-GenSubmit {
   Update-GenLedgerTask $script:GenTaskId @{ genType = $GenType; model = $Model; prompt = $Prompt; out = $script:GenOutArg; status = $Status; params = $Extra }
   Add-GenResult "task" $script:GenTaskId
   if ($Fresh -and ($New -or $PrevFailed -or $Resubmitted)) {
-    # new-generation=yes：提交了一次新的生成，成功才扣费；失败、审核拒绝不扣。
+    # new-generation=yes: a new generation was submitted; charged only on success, not on failure or moderation rejection.
     Write-GenProgress "submitted as a new generation; it is charged only if it succeeds"
     Add-GenResult "new-generation" "yes"
   }
@@ -5433,7 +5446,7 @@ function Invoke-GenSubmit {
   Add-GenResult "energy-estimate" $Est
 }
 
-# Wait-GenTask 有上限地轮询；done → 下载；failed → 5；超时 → 6。Ctrl-C 时 finally 提示续等命令。
+# Wait-GenTask polls with a cap; done -> download; failed -> 5; timeout -> 6. On Ctrl-C, finally prints the resume-wait command.
 function Wait-GenTask {
   param([string]$GenType, [int]$WaitS, [bool]$Force)
   $Start = Get-Date
@@ -5483,7 +5496,7 @@ function Stop-GenFailedTask {
   if ($Code -eq "content_violation") {
     Stop-Gen 5 "content-rejected" "rewrite the prompt without sensitive content and run again (a changed prompt is a new request); if it fails again, ask the user"
   }
-  Stop-Gen 5 "task-failed" "no energy was charged; running the same command again submits a fresh attempt automatically; if it fails again, report to the user (it may also be a content rejection the platform did not label)"
+  Stop-Gen 5 "task-failed" "no Credits were charged; running the same command again submits a fresh attempt automatically; if it fails again, report to the user (it may also be a content rejection the platform did not label)"
 }
 
 function Get-GenOutputPlan {
@@ -5508,7 +5521,7 @@ function Get-GenOutputPlan {
     $Fmt = if ($O.format) { ([string]$O.format).ToLowerInvariant() } else { ([System.IO.Path]::GetExtension(([string]$O.url).Split("?")[0])).TrimStart(".").ToLowerInvariant() }
     if (!$Fmt) { $Fmt = "bin" }
     $Kind = [regex]::Replace(([string]$O.kind).ToLowerInvariant(), '[^a-z0-9]', '')
-    # 同类产物（多张图）按序号，异类产物（3D 预览图）按 kind：hero.png/hero-2.png，chest.glb/chest-preview.png
+    # Same-kind outputs (multiple images) by index, different-kind outputs (3D preview image) by kind: hero.png/hero-2.png, chest.glb/chest-preview.png
     $Suffix = if ($Index -eq 0) { "" } elseif ($Kind -and $Kind -ne $FirstKind) { "-$Kind" } else { "-$($Index + 1)" }
     if ($AsDir) {
       $Dest = Join-Path $Out "$GenType-$Short$Suffix.$Fmt"
@@ -5524,14 +5537,14 @@ function Get-GenOutputPlan {
 
 function Complete-GenTask {
   param([string]$GenType, $Task, [bool]$Force)
-  # 任务在平台已完成并结算：先记账、先报告消耗，再处理本地下载。
+  # The task is done and settled on the platform: record the ledger and report cost first, then handle the local download.
   $Cost = if ($null -ne $Task.energyCost) { [long]$Task.energyCost } else { 0 }
   $PriorRecord = Read-GenJsonFile (Join-Path (Join-Path $GenDir "tasks") ((ConvertTo-GenSafeTask $script:GenTaskId) + ".json"))
   $Prior = if ($PriorRecord) { [string]$PriorRecord.status } else { "" }
   Update-GenLedgerTask $script:GenTaskId @{ status = "done"; energyCost = $Cost; model = [string]$Task.model }
   Set-GenRequestDone $script:GenTaskId
   Add-GenResult "status" "done"
-  # 这次交付的是此前已完成的任务（本地台账或平台重放都显示已完成）：显式标出是旧结果、生成于何时。
+  # This delivery is a previously completed task (local ledger or platform replay shows done): explicitly mark it as an old result and when it was generated.
   $Earlier = ($Prior -eq "done") -or ($script:GenSubmitStatus -eq "done")
   $Created = ""
   if ($Earlier) {
@@ -5544,7 +5557,7 @@ function Complete-GenTask {
     if ($Created) { Add-GenResult "reused-from" $Created }
   }
   if ($Earlier) {
-    # 任务此前已完成并结算：这次只是复用/补下载，本次消耗为 0，原任务花费单独给出。
+    # The task was already completed and settled: this run is only a reuse/re-download, cost for this run is 0, and the original task's cost is given separately.
     Add-GenResult "energy-cost" "0"
     Add-GenResult "task-energy-cost" ([string]$Cost)
   } else {
@@ -5567,14 +5580,14 @@ function Complete-GenTask {
     }
   } catch {}
   if ($Earlier -and $script:GenFromGenerate) {
-    # 平台修过问题后，同样的请求仍会命中旧任务：用 hint 明确告知这是旧结果（next= 只放命令，不放说明）。
+    # After the platform fixes an issue, the same request still hits the old task: use hint to state clearly that this is an old result (next= holds only commands, not explanations).
     $When = if ($Created) { $Created } else { "an earlier time" }
     Add-GenResult "hint" "this is the earlier result generated at $When (no new charge); tell the user it is not a new generation, and if they want a fresh one, rerun with --new (charged)"
   }
   Exit-Gen 0
 }
 
-# Save-GenOutput 原子写入：同目录 .part → md5 校验 → 替换；已存在且内容一致视为成功。CDN 下载不带授权头。
+# Save-GenOutput writes atomically: same-dir .part -> md5 check -> replace; an existing file with identical content counts as success. CDN downloads carry no auth header.
 function Save-GenOutput {
   param([string]$Url, [string]$Md5, [string]$Dest, [bool]$Force, [string]$Dims = "")
   if (Test-Path -LiteralPath $Dest -PathType Leaf) {
@@ -5589,12 +5602,12 @@ function Save-GenOutput {
   }
   $Dir = Split-Path -Parent $Dest
   if (!$Dir) { $Dir = "." }
-  # 本地写入问题（目录建不了、只读）单独报 write-failed：重复下载解决不了，不能引导 agent 进入重试循环。
+  # Local write problems (dir cannot be created, read-only) are reported separately as write-failed: re-downloading will not fix them, so the agent must not be led into a retry loop.
   try { New-Item -ItemType Directory -Force -Path $Dir -ErrorAction Stop | Out-Null } catch {
     Stop-Gen 1 "write-failed" "cannot create directory $Dir (check the path and permissions); the task is done and will not be charged again: fix the path, then run gen download $script:GenTaskId -o <a writable path>"
   }
   $Part = Join-Path $Dir (".{0}.part" -f (Split-Path -Leaf $Dest))
-  # 下载前先确认目录可写：只读目录报 write-failed，不能伪装成可重试的下载失败。
+  # Before downloading, confirm the dir is writable: a read-only dir reports write-failed and must not masquerade as a retryable download failure.
   try { [System.IO.File]::WriteAllBytes($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Part), [byte[]]@()) } catch {
     Stop-Gen 1 "write-failed" "cannot write into $Dir (read-only); the task is done and will not be charged again: fix the permissions, then run gen download $script:GenTaskId -o <a writable path>"
   }
@@ -5613,7 +5626,7 @@ function Save-GenOutput {
     Remove-Item -Force -LiteralPath $Part -ErrorAction SilentlyContinue
     Stop-Gen 7 "checksum-mismatch" "the downloaded file failed its checksum; download it again" "$GenCli gen download $script:GenTaskId -o $(Format-GenArg $Dest)"
   }
-  # 扩展名以文件内容为准：平台格式元数据与实际不符时纠正（引擎可能按扩展名解码）。
+  # The extension follows the file content: correct it when the platform's format metadata does not match (engines may decode by extension).
   $Planned = [System.IO.Path]::GetExtension($Dest).TrimStart(".").ToLowerInvariant()
   $Real = Get-GenSniffedExt $Part $Planned
   if ($Real -ne $Planned) {
@@ -5631,7 +5644,7 @@ function Save-GenOutput {
   return $Dest
 }
 
-# Write-GenRenameNote 实际文件扩展名与 -o 要求的不一致时（按内容或平台返回格式纠正）明确告知，避免代码里写死错误的文件名。
+# Write-GenRenameNote: explicitly tell the user when the actual file extension differs from what -o requested (corrected by content or platform format), so code does not hardcode a wrong file name.
 function Write-GenRenameNote {
   param([string]$Final)
   if ($script:GenRenameNoted) { return }
@@ -5644,7 +5657,7 @@ function Write-GenRenameNote {
   Write-GenProgress "warning: saved as $Final instead of $Out to match the real file format"
 }
 
-# Get-GenSniffedExt 仅在图片格式之间按文件头纠正扩展名（平台曾把 PNG 标成 jpg）。
+# Get-GenSniffedExt corrects extensions only among image formats by file header (the platform once labeled PNG as jpg).
 function Get-GenSniffedExt {
   param([string]$Path, [string]$Planned)
   if ($Planned -notin @("png", "jpg", "jpeg", "webp")) { return $Planned }
@@ -5702,7 +5715,7 @@ function Invoke-GenTaskCommand {
       $LedgerRecord = Read-GenJsonFile (Join-Path (Join-Path $GenDir "tasks") ((ConvertTo-GenSafeTask $script:GenTaskId) + ".json"))
       if ($LedgerRecord -and $LedgerRecord.params) { Add-GenResult "params" ([string]$LedgerRecord.params) }
       Add-GenResult "energy-estimate" ([string]$Task.estimatedEnergy)
-      # 进行中的任务还没有结算：不输出 energy-cost，避免被读成"免费"。
+      # An in-progress task is not settled yet: do not output energy-cost, so it is not read as "free".
       if ($St -in @("done", "failed")) { Add-GenResult "energy-cost" ([string]$Task.energyCost) }
       if ($Task.failCode) { Add-GenResult "fail-code" ([string]$Task.failCode) }
       if ($Task.failReason) { Add-GenResult "fail-reason" ([string]$Task.failReason) }
@@ -5717,7 +5730,7 @@ function Invoke-GenInfoCommand {
   for ($i = 0; $i -lt $Arguments.Count; $i++) {
     $A = $Arguments[$i]
     $Opt = $A.Split("=", 2)[0]
-    # 每个子命令只接受自己的选项，不相关的选项报错而不是静默忽略。
+    # Each subcommand accepts only its own options; unrelated options error out instead of being silently ignored.
     if ($Opt -eq "--json") { $script:GenJson = $true; continue }
     if ($Opt -in @("-h", "--help")) { Show-GenUsage; Exit-Gen 0 }
     if ($Opt -eq "--limit" -and $Sub -in @("list", "usage")) {
@@ -5779,7 +5792,7 @@ function Invoke-GenInfoCommand {
         $When = if ($Ms -gt 100000000000) { [DateTimeOffset]::FromUnixTimeMilliseconds($Ms) } else { [DateTimeOffset]::FromUnixTimeSeconds($Ms) }
         $TaskText = if ($T.taskId) { $T.taskId } else { "-" }
         $TypeText = if ($T.genType) { $T.genType } else { "-" }
-        # source 区分这笔流水是否由 Builda（生成接口 caller=platform）发起；同账号在 App 里的消费标 app/other。
+        # source distinguishes whether this transaction was initiated by Builda (generation API caller=platform); consumption by the same account in the App is marked app/other.
         $Source = if ($T.caller -eq "platform") { "builda" } elseif ($T.caller) { $T.caller } else { "app/other" }
         Write-Host ("time={0} change={1} balance-after={2} source={6} type={3} task={4} reason={5}" -f $When.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), $T.change, $T.balanceAfter, $TypeText, $TaskText, ($T.reason | ConvertTo-Json -Compress), $Source)
       }
@@ -5819,7 +5832,7 @@ function Write-GenLedgerList {
 function Invoke-Gen {
   param([string[]]$Arguments)
   $Sub = if ($Arguments.Count -gt 0) { $Arguments[0] } else { "" }
-  # --json 在解析任何参数前生效：参数错误也要输出 JSON，与参数顺序无关。
+  # --json takes effect before parsing any argument: parameter errors also output JSON, regardless of argument order.
   if ($Arguments -contains "--json") { $script:GenJson = $true }
   [string[]]$Tail = if ($Arguments.Count -gt 1) { @($Arguments[1..($Arguments.Count - 1)]) } else { @() }
   switch ($Sub) {
@@ -6047,7 +6060,7 @@ switch ($Cmd) {
       Write-Host "project-binding=$ProjectFile"
       Write-Host "project-state-dir=$(Split-Path -Parent $ProjectFile)"
     } else {
-      # 未绑定游戏是正常状态（例如只用 builda gen 生成素材）：给中性提示，不做依赖游戏身份的 Cloud State 检查。
+      # No bound game is a normal state (e.g. only using builda gen to generate assets): give a neutral hint and skip Cloud State checks that depend on game identity.
       Write-Host "project-game-id=none"
       Write-Host "project-game-note=not bound to a Builda game yet; normal when only using builda gen, publishing binds it"
     }

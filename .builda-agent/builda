@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ── 项目级布局（一个项目 = 一份工具链 = 一个版本号）─────────────────────────
-# CLI/SKILL/VERSION 作为项目工具链纳入 Git；publish.env、可再生缓存与收据只留本地；
-# 授权凭证（token/refresh-token）唯一留在 $HOME/.builda-agent/。
-# 旧命名 .builda-godot-agent（多引擎化前）由 legacy_project_dir_migrate / legacy_auth_migrate
-# 在下次运行时自动迁移（见 docs/decisions/0013）。
+# ── Project-level layout (one project = one toolchain = one version) ────────
+# CLI/SKILL/VERSION are committed to Git as the project toolchain; publish.env, regenerable caches and receipts stay local;
+# auth credentials (token/refresh-token) live only in $HOME/.builda-agent/.
+# The old name .builda-godot-agent (pre multi-engine) is migrated automatically on the next run by legacy_project_dir_migrate / legacy_auth_migrate
+# (see docs/decisions/0013).
 SELF_PATH="${BASH_SOURCE[0]:-$0}"
 SELF_DIR="$(cd "$(dirname "$SELF_PATH")" && pwd -P)"
 AUTH_DIR="${BUILDA_AUTH_DIR:-$HOME/.builda-agent}"
@@ -22,7 +22,7 @@ ENV_FILE="$ROOT/publish.env"
 MANIFEST="${BUILDA_MANIFEST:-builda.publish.json}"
 PROJECT_FILE="${BUILDA_PROJECT_FILE:-$PROJECT_STATE_DIR/game.json}"
 LEGACY_PROJECT_FILE="${BUILDA_LEGACY_PROJECT_FILE:-builda.game.json}"
-VERSION="0.4.101"
+VERSION="0.4.102"
 RUNTIME_VERSION_FILE="$ROOT/VERSION"
 SDK_VERSION_FILE="$PROJECT_STATE_DIR/sdk-version"
 [ -f "$ENV_FILE" ] && . "$ENV_FILE"
@@ -33,7 +33,7 @@ fi
 BUILDA_BASE="${BUILDA_BASE:-$BUILDA_DEFAULT_BASE}"
 BUILDA_ISSUE_BASE="${BUILDA_ISSUE_BASE:-$BUILDA_BASE}"
 if [ -n "${BUILDA_STUDIO_API_BASE:-}" ]; then
-  # Studio Worker 显式注入集群内 API；外部项目继续使用 publish.env 的公网地址。
+  # Studio Worker explicitly injects the in-cluster API; external projects keep using the public address from publish.env.
   BUILDA_BASE="${BUILDA_STUDIO_API_BASE%/}"
 fi
 BUILDA_DEFAULT_AGENT_BASE="https://ai.builda.game"
@@ -599,7 +599,7 @@ builda upload-cancel <session>  Cancel an owned resumable build upload.
 builda publish [zip] [manifest]  Upload an optional build and sync this project's draft.
 builda schemas upload [manifest] Register immutable object schemas for the bound game.
 builda gen <audio|music|image|model3d> --prompt <text> -o <file>
-                               Generate assets with Builda AI (consumes Builda energy); see builda gen --help.
+                               Generate assets with Builda AI (consumes Builda Credits); see builda gen --help.
 builda assets check <zip>       Check assets.zip: audio/** (.mp3|ogg|wav) + res/** (.glb|gltf|bin|ktx2|png|jpg|jpeg|webp|json|bundle|hash|pck; pck must be data-only).
 builda assets upload <zip>      Upload audio/res assets; update manifest when possible.
 builda create-draft [manifest]  Sync a new Builda pending draft and update the Builda current version.
@@ -646,10 +646,10 @@ auth_recovery_hint() {
   echo "auth-resume=after auth succeeds or refreshes, retry the command that failed."
 }
 
-# detect_engine_value 静默判定引擎（小写，与后端/协议口径一致）：
-# godot 优先（有 project.godot 即 godot）；unity = ProjectSettings/ProjectVersion.txt 或
-# Assets/+Packages/manifest.json；HTML5 = 根目录有 index.html 或 package.json
-# （pixi/phaser/vite 等工程形态）。
+# detect_engine_value silently detects the engine (lowercase, consistent with backend/protocol conventions):
+# godot first (project.godot present => godot); unity = ProjectSettings/ProjectVersion.txt or
+# Assets/+Packages/manifest.json; HTML5 = index.html or package.json at the root
+# (pixi/phaser/vite and similar project shapes).
 detect_engine_value() {
   local root="${1:-.}"
   if [ -f "$root/project.godot" ]; then
@@ -663,7 +663,7 @@ detect_engine_value() {
   fi
 }
 
-# 按项目引擎输出基础 Skill 核心之外本项目适用的按需专题，Agent 只读命中的那几份（见 SKILL.md 任务分流表）。
+# Print the on-demand topics that apply to this project's engine beyond the base Skill core; the Agent reads only the matching ones (see the task routing table in SKILL.md).
 print_skill_topics() {
   local engine="$1" base="$BUILDA_AGENT_BASE/agent/releases/$VERSION" topic sdk_version
   case "$engine" in
@@ -701,8 +701,8 @@ engine_detect() {
   esac
 }
 
-# manifest_engine 引擎单一来源：manifest 的 engine 字段优先，缺失时按目录判定，
-# 非法值兜底 godot（与后端"空=godot"归一口径一致）。
+# manifest_engine is the single source of the engine: the manifest engine field wins; if missing, detect from the directory;
+# invalid values fall back to godot (consistent with the backend's "empty = godot" normalization).
 manifest_engine() {
   local file="${1:-$MANIFEST}" v=""
   [ -f "$file" ] && v="$(manifest_string_field "$file" engine)"
@@ -1184,8 +1184,8 @@ PY
 }
 
 inject_sdk_version() {
-  # sdkVersion 跟随项目 SDK 安装收据（sdk install 写入），草稿上报后进 release manifest 的
-  # sdk 契约，宿主按它下载 runtime SDK；不要手工维护该字段。
+  # sdkVersion follows the project's SDK install receipt (written by sdk install); after draft reporting it goes into the release manifest's
+  # sdk contract, and the host downloads the runtime SDK by it; do not maintain this field by hand.
   local file="$1" v tmp
   [ -f "$SDK_VERSION_FILE" ] || return 0
   v="$(head -n 1 "$SDK_VERSION_FILE" | tr -d '\r')"
@@ -1276,8 +1276,8 @@ import sys
 
 root = pathlib.Path(".").resolve()
 include_suffixes = {".gd", ".js", ".ts", ".tsx", ".jsx", ".html", ".cfg", ".tscn"}
-# Unity 工程目录整体跳过：旧 Builda SDK API 只存在于 GDScript/JS 时代，Unity 项目无迁移
-# 负担；Library/Temp 文件量大，扫描徒增耗时与误报面。
+# Skip Unity project directories entirely: the old Builda SDK API only existed in the GDScript/JS era, so Unity projects have nothing to migrate;
+# Library/Temp hold many files, and scanning them only adds time and false positives.
 skip_parts = {
     ".git", ".godot", ".builda-agent", ".builda-godot-agent", "addons", "node_modules",
     "__pycache__", "build", "dist", "target", "server-pack", "server_pack",
@@ -1296,8 +1296,8 @@ patterns = [
     (re.compile(r"\b(?:Builda|builda)\s*\.\s*init\s*\("), "old Builda.init(...) is no longer part of the public SDK; use BuildaClient.builda.runtime_ready() when the game is ready"),
     (re.compile(r"\b(?:Builda|builda)\s*\.\s*event\s*\("), "old event(...) analytics API is not part of the MVP SDK; remove it or keep analytics outside Builda"),
     (re.compile(r"\b(?:Builda|builda)\s*\.\s*track\s*\("), "old track(...) analytics API is not part of the MVP SDK; remove it or keep analytics outside Builda"),
-    (re.compile(r"\bbackend_create\s*\("), "backend_create(...) 当前不受支持；Builda Online 工具链入口：https://ai.builda.game/online/setup.md"),
-    (re.compile(r"\bBuilda\s*\.\s*backend\s*\.\s*create\s*\("), "Builda.backend.create() 当前不受支持；Builda Online 工具链入口：https://ai.builda.game/online/setup.md"),
+    (re.compile(r"\bbackend_create\s*\("), "backend_create(...) is not supported; Builda Online toolchain entry: https://ai.builda.game/online/setup.md"),
+    (re.compile(r"\bBuilda\s*\.\s*backend\s*\.\s*create\s*\("), "Builda.backend.create() is not supported; Builda Online toolchain entry: https://ai.builda.game/online/setup.md"),
 ]
 errors = []
 
@@ -1404,8 +1404,8 @@ remote_version() {
   printf '%s' "$resp" | json_field version
 }
 
-# version_newer A B：A 的 semver 严格大于 B 时返回 0。自动更新只升不降：发布后 CDN 短暂缓存的旧版本号、
-# 或线上回滚到旧版本，都不会把本地工具链自动降级（需要时用 builda update 显式同步）。无法解析时按"不更新"处理。
+# version_newer A B: returns 0 when semver A is strictly greater than B. Auto-update only upgrades: a stale version briefly cached by the CDN after release,
+# or a production rollback, never auto-downgrades the local toolchain (use builda update to sync explicitly if needed). Unparseable => treat as "no update".
 version_newer() {
   local a="$1" b="$2" i
   local -a x y
@@ -1419,29 +1419,29 @@ version_newer() {
   return 1
 }
 
-# ── 项目级注册（stub 指针 + AGENTS.md 标记块 + .gitignore 安全分界线）─────────
-# stub 是静态短文件；skill 真身与 CLI/VERSION 一起在 $ROOT 中入库并随工具链显式更新。
-# 真身缺失时 stub 引导重装。绝不写任何 $HOME 全局注册。
+# ── Project-level registration (stub pointer + AGENTS.md marker block + .gitignore safety boundary) ───
+# The stub is a short static file; the real skill is committed in $ROOT with CLI/VERSION and updated explicitly with the toolchain.
+# When the real skill is missing, the stub guides a reinstall. Never write any global $HOME registration.
 
 stub_description() {
-  printf '%s' 'BuildaGame（Builda）游戏发布工具链：接入 Builda SDK、本地 mock 调试、导出 Godot Web / Unity WebGL 或打包 HTML5 构建、上传/更新游戏草稿。'
+  printf '%s' 'BuildaGame (Builda) game publishing toolchain - integrate the Builda SDK, debug locally with the mock, export Godot Web / Unity WebGL or package HTML5 builds, and upload/update game drafts.'
 }
 
 stub_body() {
   printf '%s\n' \
-    '本项目已安装项目级 BuildaGame 工具链（发布 Godot Web / HTML5 / Unity WebGL 游戏到 Builda）。CLI 与基础说明书同版；SDK 随项目独立锁定版本：' \
+    'This project has the project-scoped BuildaGame toolchain installed (publishes Godot Web / HTML5 / Unity WebGL games to Builda). The CLI and the base Skill share one version; the SDK version is pinned per project:' \
     '' \
-    '1. 完整说明书（先读）：项目根的 `.builda-agent/SKILL.md`' \
-    'SDK 任务必须读取 .builda-agent/sdk-guidance/<sdk-version>/SKILL.md；缺依赖按基础 Skill 恢复，升级后重新读取。' \
-    '2. 每次任务开始先跑：`./.builda-agent/builda check`（自动对齐工具链版本，并提示 SDK 是否需要同步）' \
+    '1. Full guide (read first): `.builda-agent/SKILL.md` at the project root' \
+    'SDK tasks must read .builda-agent/sdk-guidance/<sdk-version>/SKILL.md; restore missing dependencies per the base Skill, and reread it after upgrading.' \
+    '2. At the start of every task run `./.builda-agent/builda check` (aligns the toolchain version automatically and reports whether the SDK needs syncing)' \
     '' \
-    '若上述文件缺失（例如刚 clone 本仓库），在项目根目录重装：' \
+    'If these files are missing (e.g. right after cloning this repo), reinstall from the project root:' \
     '' \
     '```bash' \
     "curl -fsSL $BUILDA_AGENT_BASE/agent/install.sh | bash" \
     '```' \
     '' \
-    'Windows（下载为文件，禁止 `iwr | iex`）：' \
+    'Windows (download to a file; never `iwr | iex`):' \
     '' \
     '```powershell' \
     '$p = Join-Path $env:TEMP "builda-install.ps1"; iwr '"$BUILDA_AGENT_BASE"'/agent/install.ps1 -UseBasicParsing -OutFile $p; & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $p; Remove-Item -Force $p -ErrorAction SilentlyContinue' \
@@ -1450,10 +1450,10 @@ stub_body() {
 
 write_state_gitignore() {
   mkdir -p "$ROOT"
-  # 安全分界线：CLI/SKILL/VERSION 与项目收据入库；敏感/可再生运行态不入库。
+  # Safety boundary: CLI/SKILL/VERSION and project receipts are committed; sensitive/regenerable runtime state is not.
   cat > "$ROOT/.gitignore" <<'GI'
-# BuildaGame 自动管理：仅敏感或可再生运行态不入库。
-# builda/builda.ps1/builda.cmd、SKILL.md、VERSION、game.json 与 sdk-version 入库。
+# Managed by BuildaGame: only sensitive or regenerable runtime state is ignored.
+# builda/builda.ps1/builda.cmd, SKILL.md, VERSION, game.json and sdk-version are committed.
 AGENT_INSTALL.md
 publish.env
 md_*.md
@@ -1470,7 +1470,7 @@ GI
 
 AGENTS_BLOCK_BEGIN="<!-- BEGIN builda (auto-managed) -->"
 AGENTS_BLOCK_END="<!-- END builda -->"
-# 多引擎化前的旧标记块（builda-godot）：写新块前先清掉，避免双块并存
+# Old pre multi-engine marker block (builda-godot): remove it before writing the new block to avoid two blocks
 LEGACY_AGENTS_BLOCK_BEGIN="<!-- BEGIN builda-godot (auto-managed) -->"
 LEGACY_AGENTS_BLOCK_END="<!-- END builda-godot -->"
 
@@ -1485,18 +1485,39 @@ strip_agents_md_block() {
   ' AGENTS.md > AGENTS.md.builda-tmp && mv AGENTS.md.builda-tmp AGENTS.md
 }
 
+agents_md_block() {
+  printf '%s\n' "$AGENTS_BLOCK_BEGIN"
+  printf '%s\n\n' "${AGENTS_BLOCK_TITLE:-## BuildaGame publishing tools (project-scoped)}"
+  stub_body
+  printf '%s\n' "$AGENTS_BLOCK_END"
+}
+
 write_agents_md_block() {
-  # 通用项目级入口（Codex 等原生读 AGENTS.md）；内容静态，已存在则跳过，不反复改动用户文件
+  # Generic project-level entry (Codex etc. read AGENTS.md natively). If the block matches the current version, leave the user's file untouched;
+  # if it differs (e.g. an old Chinese block), replace the marker block in place, keeping content outside it and its position; if the end marker is missing, do nothing.
   strip_agents_md_block "$LEGACY_AGENTS_BLOCK_BEGIN" "$LEGACY_AGENTS_BLOCK_END" || true
+  local block current
+  block="$(agents_md_block)"
   if [ -f AGENTS.md ] && grep -qF "$AGENTS_BLOCK_BEGIN" AGENTS.md; then
+    grep -qF "$AGENTS_BLOCK_END" AGENTS.md || return 0
+    current="$(awk -v b="$AGENTS_BLOCK_BEGIN" -v e="$AGENTS_BLOCK_END" '
+      index($0, b) {on=1}
+      on {sub(/\r$/, ""); print}
+      on && index($0, e) {exit}
+    ' AGENTS.md)"
+    [ "$current" = "$block" ] && return 0
+    printf '%s\n' "$block" > AGENTS.md.builda-block
+    awk -v b="$AGENTS_BLOCK_BEGIN" -v e="$AGENTS_BLOCK_END" -v f="AGENTS.md.builda-block" '
+      !skip && index($0, b) {while ((getline line < f) > 0) print line; close(f); skip=1; next}
+      skip && index($0, e) {skip=0; next}
+      !skip {print}
+    ' AGENTS.md > AGENTS.md.builda-tmp && mv AGENTS.md.builda-tmp AGENTS.md
+    rm -f AGENTS.md.builda-block
     return 0
   fi
   {
     [ -s AGENTS.md ] && printf '\n'
-    printf '%s\n' "$AGENTS_BLOCK_BEGIN"
-    printf '%s\n\n' "${AGENTS_BLOCK_TITLE:-## BuildaGame 发布工具（项目级）}"
-    stub_body
-    printf '%s\n' "$AGENTS_BLOCK_END"
+    printf '%s\n' "$block"
   } >> AGENTS.md
 }
 
@@ -1537,7 +1558,7 @@ EOF
 }
 
 remove_legacy_project_stubs() {
-  # 多引擎化前的旧 stub 名（builda-godot）：每次同步注册时顺手清理，避免双注册
+  # Old pre multi-engine stub name (builda-godot): clean it up on every registration sync to avoid double registration
   rm -rf .claude/skills/builda-godot
   rm -f .cursor/rules/builda-godot.mdc .clinerules/builda-godot.md \
         .roo/rules/builda-godot.md .windsurf/rules/builda-godot.md
@@ -1612,10 +1633,10 @@ sync_project_registrations() {
   printf '%s\n' "$installed"
 }
 
-# ── 项目上下文守卫与旧布局迁移 ───────────────────────────────────────────────
+# ── Project context guard and legacy layout migration ────────────────────────
 legacy_home_migrate() {
-  # 本体还躺在旧的用户级目录（老版本自更新拉到新 CLI 后落到这里）：
-  # 把工具链搬进当前项目，凭证原地保留，然后用项目里的新身体接着跑原命令。
+  # The CLI body still sits in the old user-level directory (where an old self-update dropped the new CLI):
+  # move the toolchain into the current project, keep credentials in place, then rerun the original command with the project's new body.
   local target_root="$PWD/$PROJECT_STATE_DIR"
   echo "layout-migration=required (toolchain moved from \$HOME to per-project)" >&2
   if [ "$PWD" = "$HOME" ] || [ "$target_root" = "$SELF_DIR" ]; then
@@ -1630,7 +1651,7 @@ legacy_home_migrate() {
   [ -f "$SELF_DIR/VERSION" ] && cp "$SELF_DIR/VERSION" "$target_root/VERSION"
   [ -f "$SELF_DIR/publish.env" ] && cp "$SELF_DIR/publish.env" "$target_root/publish.env"
   sync_project_registrations >/dev/null
-  # 旧用户级目录只留凭证；全局 skill 注册一并清除（全局上下文污染清理）
+  # Leave only credentials in the old user-level directory; also remove global skill registrations (global context cleanup)
   local f
   for f in builda builda.ps1 builda.cmd SKILL.md VERSION AGENT_INSTALL.md publish.env \
            md_cysj_app.md md_cjk_font.md md_mobile_perf.md \
@@ -1646,8 +1667,8 @@ legacy_home_migrate() {
 }
 
 legacy_project_dir_migrate() {
-  # 本体躺在旧命名的项目目录 .builda-godot-agent/（多引擎化前安装）：
-  # 把内容搬进 .builda-agent/、重写注册 stub、删旧目录，再用新路径 CLI 接力原命令。
+  # The CLI body sits in the old-named project directory .builda-godot-agent/ (pre multi-engine install):
+  # move the content into .builda-agent/, rewrite the registration stub, delete the old directory, then hand the original command to the CLI at the new path.
   local target_root="$PWD/$PROJECT_STATE_DIR"
   echo "layout-migration=required (toolchain dir renamed $LEGACY_PROJECT_STATE_DIR -> $PROJECT_STATE_DIR)" >&2
   if [ "$(cd "$LEGACY_PROJECT_STATE_DIR" 2>/dev/null && pwd -P || true)" != "$SELF_DIR" ]; then
@@ -1672,8 +1693,8 @@ legacy_project_dir_migrate() {
 }
 
 legacy_auth_migrate() {
-  # 凭证目录改名迁移：复制不删除——旧 CLI（其他项目里尚未自更新的）仍读旧目录。
-  # uninstall --purge 会两代一起清；BUILDA_AUTH_DIR 显式覆盖时不迁移。
+  # Credential directory rename migration: copy, do not delete -- old CLIs (in other projects not yet self-updated) still read the old directory.
+  # uninstall --purge removes both generations; no migration when BUILDA_AUTH_DIR is explicitly overridden.
   [ -n "${BUILDA_AUTH_DIR:-}" ] && return 0
   [ -f "$TOKEN_FILE" ] && return 0
   [ -f "$LEGACY_AUTH_DIR/token" ] || return 0
@@ -1726,7 +1747,7 @@ uninstall_builda() {
     *) echo "unknown uninstall option: $1" >&2; exit 1 ;;
   esac
 
-  # 项目级注册（新旧两代 stub 名一起清）
+  # Project-level registration (clear both old and new stub names)
   remove_if_exists ".claude/skills/builda"
   remove_if_exists ".cursor/rules/builda.mdc"
   remove_if_exists ".clinerules/builda.md"
@@ -1738,7 +1759,7 @@ uninstall_builda() {
   remove_if_exists ".roo/rules/builda-godot.md"
   remove_if_exists ".windsurf/rules/builda-godot.md"
   remove_agents_md_block
-  # 历史遗留的全局注册（旧版本写入 $HOME 的）顺手清掉
+  # Also clean up legacy global registrations (written to $HOME by old versions)
   remove_if_exists "${CODEX_HOME:-$HOME/.codex}/skills/builda-godot"
   remove_if_exists "$HOME/.claude/skills/builda-godot"
   remove_if_exists "$HOME/.cursor/rules/builda-godot.mdc"
@@ -1795,7 +1816,7 @@ self_update() {
 check_update() {
   local remote sdkv
   remote="$(remote_version)"
-  # CLI / 基础 Skill 同版，游戏 SDK 单独锁定。
+  # CLI / base Skill share one version; the game SDK is pinned separately.
   echo "builda-version=$VERSION"
   echo "toolchain-version=$VERSION"
   if [ -n "$remote" ]; then
@@ -1819,7 +1840,7 @@ check_update() {
     sdkv="$(head -n 1 "$SDK_VERSION_FILE" | tr -d '\r')"
     echo "sdk-version=$sdkv"
     sdk_guidance || true
-    echo "sdk-sync=independent (项目 SDK 独立锁定；显式升级: builda sdk upgrade)"
+    echo "sdk-sync=independent (SDK version pinned per project; upgrade explicitly: builda sdk upgrade)"
     sdk_online_status
   elif [ -d addons/builda ] || [ -d "$PROJECT_STATE_DIR/sdk/web" ]; then
     echo "sdk-version=unknown (missing $SDK_VERSION_FILE; run: builda sdk install)"
@@ -2642,10 +2663,10 @@ bundle_check() {
     *) echo "bundle-check engine must be godot, h5 or unity: $engine" >&2; exit 1 ;;
   esac
   need_python3
-  # 校验口径与后端 buildzip 一致（单一真相源：h5_bundle_spec.md 附表 B）：
-  # godot = 三件套 + Godot 黑名单 + threads/COI/wasm 内存；h5 = 仅入口 + 通用黑名单 +
-  # sourcemap/node_modules 禁用，跳过 Godot 专属正则；unity = Build/ 四件套（后缀匹配，
-  # 允许 .unityweb）+ Unity 工程黑名单 + StreamingAssets 扩展名豁免，禁用规则同 h5。
+  # Validation rules match backend buildzip (single source of truth: h5_bundle_spec.md Appendix B):
+  # godot = three-piece set + Godot denylist + threads/COI/wasm memory; h5 = entry only + common denylist +
+  # sourcemap/node_modules banned, Godot-specific regexes skipped; unity = Build/ four-piece set (suffix match,
+  # allowing .unityweb) + Unity project denylist + StreamingAssets extension exemption, banned rules same as h5.
   python3 - "$zip" "$webview_compat" "$engine" <<'PY'
 import pathlib
 import re
@@ -2658,7 +2679,7 @@ webview_compat = sys.argv[2] == "1"
 engine = sys.argv[3]
 max_wasm_memory = 1 << 30
 required = {"index.html", "index.js", "index.wasm", "index.pck"} if engine == "godot" else {"index.html"}
-# 扩展名白名单：与后端 buildzip godot/h5/unity 集合一致（h5_bundle_spec.md 附表 B，三处同步改）
+# Extension allowlist: matches backend buildzip godot/h5/unity sets (h5_bundle_spec.md Appendix B; change all three places together)
 godot_ext = {
     ".html", ".js", ".wasm", ".pck",
     ".png", ".jpg", ".jpeg", ".webp", ".svg",
@@ -2673,7 +2694,7 @@ h5_ext = godot_ext | {
 }
 unity_ext = h5_ext | {".unityweb", ".data"}
 allowed_ext = {"godot": godot_ext, "h5": h5_ext, "unity": unity_ext}[engine]
-# unity 的 Build/ 四件套（文件名带构建名变量，只做前缀+后缀匹配，附表 B.7）
+# unity Build/ four-piece set (file names contain the build name, so match prefix+suffix only, Appendix B.7)
 unity_found = {"loader.js": False, "framework.js": False, "wasm": False, "data": False}
 found = set()
 forbidden = []
@@ -2749,8 +2770,8 @@ with zipfile.ZipFile(zip_path) as z:
                     unity_found["wasm"] = True
                 elif clean.endswith((".data", ".data.unityweb")):
                     unity_found["data"] = True
-        # unity 的 StreamingAssets/ 跳过扩展名白名单（AssetBundle 惯例常无扩展名，附表 B.3）；
-        # 禁用清单/符号链接/zip slip 照常执行
+        # unity StreamingAssets/ skips the extension allowlist (AssetBundles conventionally often lack extensions, Appendix B.3);
+        # banned list/symlinks/zip slip are still enforced
         streaming_exempt = engine == "unity" and clean.startswith("StreamingAssets/")
         if not streaming_exempt and suffix not in allowed_ext:
             bad_ext.append(clean)
@@ -2766,7 +2787,7 @@ with zipfile.ZipFile(zip_path) as z:
     if bad_ext:
         raise SystemExit("File types not allowed for engine=" + engine + ": " + ", ".join(bad_ext))
     if sdk_found:
-        # 旧形态（SDK 焊在包内）继续放行；新形态 zip 不含 SDK，由宿主按 manifest sdk 版本注入
+        # Old form (SDK baked into the bundle) is still allowed; new-form zips contain no SDK, the host injects it per the manifest sdk version
         print("bundle-sdk=embedded (legacy form; new exports ship without SDK, host injects by manifest)")
     with z.open("index.html") as f:
         index_html = f.read(1024 * 1024).decode("utf-8", "ignore")
@@ -2788,7 +2809,7 @@ print("bundle-engine=" + engine)
 print("sdk-injected=ok")
 
 if engine == "godot":
-    # Godot 专属：threads/COI 导出模板变量与 Emscripten 内存正则（h5 跳过，误报不可控）
+    # Godot-specific: threads/COI export template variables and Emscripten memory regexes (skipped for h5; false positives uncontrollable)
     threads_enabled = bool(re.search(r"\bGODOT_THREADS_ENABLED\s*=\s*true\b", index_html) or re.search(r"\bGODOT_THREADS_ENABLED\s*=\s*true\b", index_js))
     coi_enabled = bool(re.search(r"\bensureCrossOriginIsolationHeaders\s*:\s*true\b", index_html) or re.search(r"\bensureCrossOriginIsolationHeaders\s*:\s*true\b", index_js))
     if webview_compat:
@@ -2819,12 +2840,12 @@ if engine == "godot":
         print("wasm-memory-check=unknown")
         print("wasm-memory-hint=No explicit WebAssembly memory setting was found in index.js; upload will still enforce the 1GiB bundle/runtime limit.")
 PY
-  # 非阻断提示：zip 超 50MiB 建议做包体优化；只提示、不改变服务端动态上传上限。
+  # Non-blocking hint: suggest bundle size optimization for zips over 50MiB; hint only, does not change the server's dynamic upload limit.
   local zip_bytes
   zip_bytes=$(wc -c < "$zip" | tr -d '[:space:]')
   echo "bundle-zip-bytes=$zip_bytes"
   if [ "$zip_bytes" -gt 52428800 ]; then
-    echo "bundle-size-hint=zip 已达 $((zip_bytes / 1048576))MiB（>50MiB）。必须评估分包/资源外置优化；建议阅读 $BUILDA_AGENT_BASE/agent/releases/$VERSION/md_bundle_size.md（大资源外置 res/**、音频/字体/纹理瘦身）。该提示不阻断上传。" >&2
+    echo "bundle-size-hint=zip is $((zip_bytes / 1048576))MiB (>50MiB). You must evaluate asset splitting / moving assets out of the bundle; read $PROJECT_STATE_DIR/sdk-guidance/<sdk-version>/md_bundle_size.md (move large assets to res/**, slim down audio/fonts/textures). This hint does not block the upload." >&2
   fi
 }
 
@@ -2833,7 +2854,7 @@ builda_dev_parse() {
   local mode="${1:-serve}"
   if [ "$mode" = "e2e" ]; then
     echo "dev-e2e=removed" >&2
-    echo "builda dev e2e 已移除：它只重复断言 SDK 内置 mock 行为。改用 builda dev 起本地运行器，在浏览器里跑真实游戏验证。" >&2
+    echo "builda dev e2e has been removed: it only re-asserted the built-in SDK mock behavior. Use builda dev to start the local runner and verify the real game in a browser instead." >&2
     exit 1
   fi
   if [ "$mode" = "serve" ]; then
@@ -2896,7 +2917,7 @@ builda_dev_parse() {
   done
   [ -n "$web" ] || { echo "Usage: builda dev --web <dir|zip> [--port 18088]" >&2; exit 1; }
   [ -e "$web" ] || { echo "dev web path not found: $web" >&2; exit 1; }
-  # assets 兜底源：未显式指定时探测项目根 ./assets（audio|res 顶层子树，与 assets.zip 同布局）
+  # assets fallback source: if not specified explicitly, probe the project root ./assets (audio|res top-level subtrees, same layout as assets.zip)
   if [ -z "$assets" ] && { [ -d "assets/audio" ] || [ -d "assets/res" ]; }; then
     assets="assets"
   fi
@@ -2978,8 +2999,8 @@ index = web_root / "index.html"
 if not index.is_file():
     raise SystemExit(f"dev web root missing index.html: {web_root}")
 
-# assets 兜底源（audio/**、res/**，与 assets.zip 同布局）：CP 不用再把资源拷进构建目录，
-# mock SDK 按页面目录解析出的 /audio/... /res/... 请求在 web root 缺文件时由这里补上
+# assets fallback source (audio/**, res/**, same layout as assets.zip): CPs no longer need to copy resources into the build dir;
+# /audio/... /res/... requests the mock SDK resolves from the page directory are served from here when missing in the web root
 assets_root = None
 if assets_arg:
     assets_source = pathlib.Path(assets_arg).expanduser().resolve()
@@ -2992,8 +3013,8 @@ if assets_arg:
     else:
         raise SystemExit(f"dev --assets must be a directory or zip: {assets_source}")
 
-# mock SDK 兜底查找顺序：web 导出目录 → Godot addon（addons/builda/web/）→
-# HTML5/Unity 工具链落点（<state_dir>/sdk/web/）
+# mock SDK fallback lookup order: web export dir -> Godot addon (addons/builda/web/) ->
+# HTML5/Unity toolchain location (<state_dir>/sdk/web/)
 def first_file(*candidates):
     for c in candidates:
         if c.is_file():
@@ -3005,13 +3026,13 @@ project_sdk_js = first_file(
     pathlib.Path.cwd() / state_dir / "sdk" / "web" / "builda-sdk.js",
 )
 sdk_present = (web_root / "addons" / "builda" / "web" / "builda-sdk.js").is_file() or (web_root / "builda-sdk.js").is_file() or project_sdk_js is not None
-# 测试外壳随 mock SDK 装进项目，web 导出里不会有；从项目目录兜底 serve
+# The test shell is installed into the project with the mock SDK and is absent from the web export; serve it from the project dir as a fallback
 project_shell = first_file(
     pathlib.Path.cwd() / "addons" / "builda" / "web" / "builda-dev-shell.html",
     pathlib.Path.cwd() / state_dir / "sdk" / "web" / "builda-dev-shell.html",
 )
 shell_present = (web_root / "builda-dev-shell.html").is_file() or project_shell is not None
-# BuildaMic 分析 worker 同理从项目目录兜底；正式打包必须随 zip 分发
+# Same for the BuildaMic analysis worker, served from the project dir as a fallback; release bundles must ship it in the zip
 project_mic_worker = first_file(
     pathlib.Path.cwd() / "addons" / "builda" / "mic" / "web" / "builda-mic-worker.js",
     pathlib.Path.cwd() / state_dir / "sdk" / "web" / "mic" / "builda-mic-worker.js",
@@ -3058,7 +3079,7 @@ class DevHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(data)
                 return
         if path.startswith("/addons/builda/mic/web/") or path == "/mic/builda-mic-worker.js":
-            # BuildaMic worker 兜底：web 导出目录没有时，从项目目录/工具链目录 serve（路径已 normpath 去 ..）
+            # BuildaMic worker fallback: if missing from the web export dir, serve from the project/toolchain dir (path already normpath'd to strip ..)
             target = pathlib.Path(self.directory) / path.lstrip("/")
             candidate = first_file(
                 pathlib.Path.cwd() / path.lstrip("/"),
@@ -3073,7 +3094,7 @@ class DevHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(data)
                 return
         if assets_root is not None and (path.startswith("/audio/") or path.startswith("/res/")):
-            # assets 兜底：web root 没有该文件时从项目 assets 源伺服（路径已 normpath 去 ..）
+            # assets fallback: if the file is missing from the web root, serve it from the project assets source (path already normpath'd to strip ..)
             target = pathlib.Path(self.directory) / path.lstrip("/")
             candidate = assets_root / path.lstrip("/")
             if not target.is_file() and candidate.is_file():
@@ -3217,7 +3238,7 @@ print(f"assets-files={count}")
 print(f"assets-bytes={total}")
 if pck_count:
     print(f"assets-pck={pck_count}")
-    print("assets-pck-note=服务端会深度校验 pck 必须 data-only：不含 .gd/.gdc/.gdns/.cs 等脚本、原生库、加密内容，场景/资源不得引用脚本；含脚本的 pck 会在上传时整包被拒。")
+    print("assets-pck-note=the server deeply verifies that the pck is data-only: no scripts such as .gd/.gdc/.gdns/.cs, no native libraries or encrypted content, and scenes/resources must not reference scripts; a pck containing scripts is rejected as a whole on upload.")
 PY
 }
 
@@ -3555,10 +3576,10 @@ PYSDK
   return 1
 }
 
-# ---- Builda Online：联机交付物随同一个 SDK 版本锁安装 ----
-# 基础 manifest 的 online 块钉住同版本 Online 不可变 manifest；本 CLI 只负责校验并安装联机 Skill
-# 与其自带的部署客户端 .builda-online/bin，再把客户端 SDK / Room SDK / Mock 的安装交给
-# `builda-online install`，它同样只读该版本的不可变快照。
+# ---- Builda Online: multiplayer deliverables are installed under the same SDK version lock ----
+# The base manifest's online block pins the immutable Online manifest of the same version; this CLI only verifies and installs the multiplayer Skill
+# and its bundled deploy client .builda-online/bin, then hands installing the client SDK / Room SDK / Mock to
+# `builda-online install`, which likewise reads only that version's immutable snapshot.
 ONLINE_STATE_DIR=".builda-online"
 ONLINE_SKILL_DIR=".agents/skills/builda-online"
 
@@ -3686,7 +3707,7 @@ PYONLINE
   return 1
 }
 
-# 报告联机交付物与 SDK 版本锁的关系；不安装、不联网。
+# Report how multiplayer deliverables relate to the SDK version lock; installs nothing, no network.
 sdk_online_status() {
   local record="$ONLINE_STATE_DIR/installation.json" pin="" release
   [ -f "$record" ] || return 0
@@ -3711,8 +3732,8 @@ sdk_install() {
   SDK_LEGACY=0
   if [ -e "$SDK_VERSION_FILE" ] && { [ ! -f "$SDK_VERSION_FILE" ] || [ -L "$SDK_VERSION_FILE" ]; }; then echo "SDK pin must be a regular file" >&2; return 1; fi
   sdk_assert_no_pending || return 1
-  # 引擎分流：godot 装 addon（现有全流程）；h5 装 web 内核到 .builda-agent/sdk/web/；
-  # unity 装 C# 包装层 + WebGL 模板 + web 内核
+  # Engine routing: godot installs the addon (existing full flow); h5 installs the web core into .builda-agent/sdk/web/;
+  # unity installs the C# wrapper + WebGL template + web core
   local engine
   engine="$(detect_engine_value .)"
   if [ "$engine" = "h5" ]; then
@@ -3731,8 +3752,8 @@ sdk_install() {
   if ! unzip -q -o "$SDK_ARCHIVE" -d "$stage_root"; then rm -rf "$SDK_TRANSACTION_ROOT"; echo "Godot SDK zip invalid." >&2; exit 1; fi
   stage_addon="$stage_root/addons/builda"
   [ -f "$stage_addon/builda.gd" ] && [ -f "$stage_addon/plugin.cfg" ] || { rm -rf "$SDK_TRANSACTION_ROOT"; echo "Godot SDK zip layout invalid." >&2; exit 1; }
-  # addons/builda/mic 归项目所有（BuildaMic 内置件是 L2 模板，CP 可魔改分析 worker）：
-  # 升级不覆盖已存在的 mic/；恢复默认 = 删除该目录后重跑 sdk install
+  # addons/builda/mic is owned by the project (BuildaMic built-ins are L2 templates; CPs may modify the analysis worker):
+  # upgrades do not overwrite an existing mic/; restore defaults = delete that dir and rerun sdk install
   if [ -d addons/builda/mic ]; then
     rm -rf "$stage_addon/mic"
     cp -R addons/builda/mic "$stage_addon/mic"
@@ -3753,8 +3774,8 @@ sdk_install() {
 }
 
 sdk_install_web() {
-  # HTML5 项目：mock SDK/d.ts/dev-shell/mic worker 装到 $PROJECT_STATE_DIR/sdk/web/
-  # （可再生文件，工具链 .gitignore 挡住不入库；sdk-version 收据照旧入库）。
+  # HTML5 projects: mock SDK/d.ts/dev-shell/mic worker go to $PROJECT_STATE_DIR/sdk/web/
+  # (regenerable files, kept out of Git by the toolchain .gitignore; the sdk-version receipt is still committed).
   command -v unzip >/dev/null 2>&1 || { echo "Need unzip to install the web SDK." >&2; exit 1; }
   sdk_prepare_verified_archive "web/latest.json" "builda-sdk-web.zip" || exit 1
   local stage="$SDK_TRANSACTION_ROOT/stage/web" dst
@@ -3768,9 +3789,9 @@ sdk_install_web() {
   echo "sdk-version=$SDK_SELECTED_VERSION"
   echo "sdk-installed=$dst"
   echo "sdk-engine=h5"
-  echo "sdk-next-1=在游戏 HTML 的 <head> 里引用根路径 SDK：<script src=\"builda-sdk.js\"></script>（构建产物 index.html 必须带上该引用；zip 不内嵌 SDK，正式运行时由宿主按 manifest sdk 契约注入）"
-  echo "sdk-next-2=本地调试：builda dev --web <构建目录或 zip>（dev server 自动从 $dst 兜底 serve mock SDK 与测试外壳）"
-  echo "sdk-next-3=TypeScript 类型提示：把 $dst/builda-sdk.d.ts 加进 tsconfig include（可选）"
+  echo "sdk-next-1=reference the root-path SDK in the game HTML <head>: <script src=\"builda-sdk.js\"></script> (the built index.html must keep this reference; the zip does not embed the SDK, and the host injects it at runtime per the manifest sdk contract)"
+  echo "sdk-next-2=local debugging: builda dev --web <build dir or zip> (the dev server automatically falls back to serving the mock SDK and test shell from $dst)"
+  echo "sdk-next-3=TypeScript type hints: add $dst/builda-sdk.d.ts to tsconfig include (optional)"
   sdk_online_bootstrap "$SDK_SELECTED_VERSION" || true
   if ! sdk_check; then
     echo "sdk-install=ok"
@@ -3780,9 +3801,9 @@ sdk_install_web() {
 }
 
 sdk_install_unity() {
-  # Unity 项目：C# 包装层/jslib 装 Assets/Builda/，Builda WebGL 模板装 Assets/WebGLTemplates/
-  # （Unity 硬性要求的模板位置），web 内核 mock 落 $PROJECT_STATE_DIR/sdk/web/（与 h5 同构）。
-  # 三个落点都归 SDK 所有，升级整体覆盖（无 Godot mic 那样的项目所有保留逻辑）。
+  # Unity projects: C# wrapper/jslib go to Assets/Builda/, the Builda WebGL template to Assets/WebGLTemplates/
+  # (template location required by Unity), web core mock to $PROJECT_STATE_DIR/sdk/web/ (same as h5).
+  # All three locations are SDK-owned and overwritten wholesale on upgrade (no project-owned preservation like Godot mic).
   command -v unzip >/dev/null 2>&1 || { echo "Need unzip to install the Unity SDK." >&2; exit 1; }
   sdk_prepare_verified_archive "unity/latest.json" "builda-sdk-unity.zip" || exit 1
   local tmpdir="$SDK_TRANSACTION_ROOT/stage"
@@ -3796,8 +3817,8 @@ sdk_install_unity() {
     "$tmpdir/Assets/WebGLTemplates/Builda" "Assets/WebGLTemplates/Builda"
     "$tmpdir/.builda-agent/sdk/web" "$PROJECT_STATE_DIR/sdk/web"
   )
-  # BuildaMic 分析 Worker 归项目所有（L2 模板，CP 可魔改算法）：升级不覆盖已存在目录；
-  # 恢复默认 = 删除 Assets/StreamingAssets/builda-mic 后重跑 sdk install
+  # The BuildaMic analysis Worker is project-owned (L2 template; CPs may modify the algorithm): upgrades do not overwrite an existing dir;
+  # restore defaults = delete Assets/StreamingAssets/builda-mic and rerun sdk install
   if [ -d "$tmpdir/Assets/StreamingAssets/builda-mic" ]; then
     if [ -d Assets/StreamingAssets/builda-mic ]; then
       echo "sdk-mic=preserved (Assets/StreamingAssets/builda-mic is project-owned; delete it and rerun sdk install to reset to defaults)"
@@ -3811,9 +3832,9 @@ sdk_install_unity() {
   echo "sdk-version=$SDK_SELECTED_VERSION"
   echo "sdk-installed=Assets/Builda"
   echo "sdk-engine=unity"
-  echo "sdk-next-1=Player Settings > Resolution and Presentation > WebGL Template 选 Builda（模板已装到 Assets/WebGLTemplates/Builda/，head 内已引用 builda-sdk.js）"
-  echo "sdk-next-2=Player Settings > Publishing Settings：Compression Format 选 Brotli 并勾选 Decompression Fallback（推荐），或选 Disabled；开压缩但不勾 Fallback 的产物会被上传校验拒绝"
-  echo "sdk-next-3=本地调试：builda dev --web <WebGL 构建目录或 zip>（dev server 自动从 $PROJECT_STATE_DIR/sdk/web 兜底 serve mock SDK 与测试外壳）"
+  echo "sdk-next-1=Player Settings > Resolution and Presentation > WebGL Template: choose Builda (the template is installed at Assets/WebGLTemplates/Builda/ and already references builda-sdk.js in head)"
+  echo "sdk-next-2=Player Settings > Publishing Settings: set Compression Format to Brotli and check Decompression Fallback (recommended), or choose Disabled; builds with compression on but Fallback unchecked are rejected by upload validation"
+  echo "sdk-next-3=local debugging: builda dev --web <WebGL build dir or zip> (the dev server automatically falls back to serving the mock SDK and test shell from $PROJECT_STATE_DIR/sdk/web)"
   sdk_online_bootstrap "$SDK_SELECTED_VERSION" || true
   if ! sdk_check; then
     echo "sdk-install=ok"
@@ -4108,7 +4129,7 @@ sdk_check_unity() {
   if ! sdk_compat_check; then
     return 1
   fi
-  # 分析 Worker 项目所有，缺失只提示不判失败（BuildaMic 可选能力）
+  # The analysis Worker is project-owned; if missing, only warn, do not fail (BuildaMic is optional)
   if [ -f Assets/StreamingAssets/builda-mic/builda-mic-worker.js ]; then
     echo "sdk-mic=Assets/StreamingAssets/builda-mic user-owned"
   else
@@ -4119,8 +4140,8 @@ sdk_check_unity() {
   echo "sdk-unity=Assets/Builda"
 }
 
-# sdk_mock_path 当前项目 mock SDK 的落点（引擎分流；dev serve 兜底与 smoke 都用它；
-# h5/unity 都落 $PROJECT_STATE_DIR/sdk/web/，无 addons 时自动命中）
+# sdk_mock_path: location of the current project's mock SDK (engine-routed; used by dev serve fallback and smoke;
+# h5/unity both land in $PROJECT_STATE_DIR/sdk/web/, matched automatically when there are no addons)
 sdk_mock_path() {
   if [ -f "$PROJECT_STATE_DIR/sdk/web/builda-sdk.js" ] && [ ! -f addons/builda/web/builda-sdk.js ]; then
     printf '%s' "$PROJECT_STATE_DIR/sdk/web/builda-sdk.js"
@@ -4198,10 +4219,10 @@ JS
   sdk_smoke_next_hint "$engine"
 }
 
-# ── builda gen：AI 生成素材（ADR 0047）─────────────────────────────────────────
-# 真相源在 Builda 平台：任务、计费（完成后按实际用量扣能量，失败不扣）、审核、限频与永久幂等。
-# 本地 .builda-agent/gen/ 只是可删除的台账（gitignore）：记录 requestId 与输出路径，保证重跑续上原任务。
-# 输出契约：stdout 为稳定的 key=value 行（或 --json 单个对象），进度只写 stderr；退出码见 gen_usage。
+# ── builda gen: AI asset generation (ADR 0047) ─────────────────────────────────
+# The source of truth is the Builda platform: tasks, billing (Credits charged by actual usage on completion, not on failure), moderation, rate limits and permanent idempotency.
+# Local .builda-agent/gen/ is only a deletable ledger (gitignored): records requestId and output paths so reruns resume the original task.
+# Output contract: stdout is stable key=value lines (or a single object with --json), progress goes to stderr only; exit codes in gen_usage.
 GEN_DIR="$ROOT/gen"
 GEN_DEFAULT_WAIT=100
 GEN_TASK_ID=""
@@ -4211,7 +4232,7 @@ GEN_RESULT_FILE=""
 
 gen_usage() {
   cat <<'USAGE'
-builda gen — generate game assets with Builda AI. Every successful generation consumes the user's Builda energy
+builda gen — generate game assets with Builda AI. Every successful generation consumes the user's Builda Credits
 (charged after completion by actual usage; failed or rejected tasks cost nothing).
 
 Usage:
@@ -4284,16 +4305,16 @@ def short_id(task_id):
     return (s[-8:] or "task").lower()
 
 INT_PARAMS = {"count", "targetFaces"}
-# 本版 CLI 能生成的类型；与 gen_command 分发保持一致。平台列出但不在此集合的类型标 cli-support=no。
+# Types this CLI version can generate; keep in sync with gen_command dispatch. Types the platform lists but not in this set are marked cli-support=no.
 CLI_GEN_TYPES = {"audio", "music", "image", "model3d"}
 
 def cmd_request(argv):
-    # argv: genType model prompt nonce extra refIds...；extra 为规范化的 "k=v;k=v"（按 key 排序），audio 为空。
+    # argv: genType model prompt nonce extra refIds...; extra is normalized "k=v;k=v" (sorted by key), empty for audio.
     gen_type, model, prompt, nonce, extra, refs = argv[0], argv[1], argv[2], argv[3], argv[4], argv[5:]
     params = {"prompt": prompt}
     for kv in [x for x in extra.split(";") if x]:
         k, _, v = kv.partition("=")
-        # 非整数原样保留，由提交前的 limits 校验报出 param 错误（这里不能崩）。
+        # Keep non-integers as-is; the pre-submit limits check reports a param error (must not crash here).
         if k in ("lyrics64", "title64"):
             import base64
             params[k[:-2]] = base64.b64decode(v).decode("utf-8")
@@ -4308,10 +4329,10 @@ def cmd_request(argv):
     body = {"genType": gen_type, gen_type: params}
     if model:
         body["model"] = model
-    # 派生规则与 builda.ps1 逐字节一致：NUL 分隔的纯字符串，不依赖任何 JSON 序列化细节。
+    # Derivation matches builda.ps1 byte for byte: NUL-separated plain strings, independent of any JSON serialization details.
     fields = ["builda-gen-v1", gen_type, model, prompt, ",".join(refs)]
     if extra:
-        # 只在有类型专属参数时追加：audio 的派生结果与 0.4.74 逐字节一致，升级后重跑仍续上原任务。
+        # Append only when there are type-specific params: audio derivation stays byte-identical to 0.4.74, so reruns after upgrade still resume the original task.
         fields.append(extra)
     canonical = "\0".join(fields)
     base = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -4351,7 +4372,7 @@ def cmd_error(argv):
     print("true" if body.get("retriable") else "false")
     print(",".join(body.get("runningTaskIds") or []))
     msg = str(body.get("msg") or body.get("message") or "").replace("\n", " ")
-    # 平台把自己的 reqId 拼在 message 里：拆出来单独给，避免和 Builda 的 request-id 混淆。
+    # The platform embeds its own reqId in message: split it out to avoid confusion with Builda's request-id.
     platform_req = ""
     m = re.search(r"\s*reqId=(\S+)", msg)
     if m:
@@ -4376,7 +4397,7 @@ def cmd_plan(argv):
     for i, o in enumerate(outputs):
         fmt = (o.get("format") or os.path.splitext(o["url"].split("?")[0])[1].lstrip(".") or "bin").lower()
         kind = re.sub(r"[^a-z0-9]", "", (o.get("kind") or "").lower())
-        # 同类产物（多张图）按序号，异类产物（3D 预览图）按 kind：hero.png/hero-2.png，chest.glb/chest-preview.png
+        # Same-kind outputs (multiple images) are numbered, different-kind outputs (3D preview) use kind: hero.png/hero-2.png, chest.glb/chest-preview.png
         suffix = "" if i == 0 else "-" + (kind if kind and kind != first_kind else str(i + 1))
         if as_dir:
             dest = os.path.join(out, f"{gen_type}-{short_id(task_id)}{suffix}.{fmt}")
@@ -4386,7 +4407,7 @@ def cmd_plan(argv):
         print("\t".join([o["url"], (o.get("md5") or "").lower(), str(o.get("size") or 0), dest, dims]))
 
 def cmd_check_out(argv):
-    # 生成物只能落在项目内：按真实路径（解析软链接）判断，工具链/Git 目录按不区分大小写比较（macOS/Windows 文件系统）。
+    # Outputs must stay inside the project: judged by real path (symlinks resolved); toolchain/Git dirs compared case-insensitively (macOS/Windows filesystems).
     out = argv[0]
     if os.path.isabs(out) or out.startswith("~"):
         raise SystemExit(1)
@@ -4398,8 +4419,8 @@ def cmd_check_out(argv):
         raise SystemExit(1)
 
 def cmd_out_free(argv):
-    # 文件模式下目标（含按格式改写后的扩展名）已存在 → 退出 1；目录模式文件名含任务 id，不会冲突。
-    # 冲突时打印真正冲突的文件并退出 1。
+    # File mode: target (including extension rewritten per format) already exists -> exit 1; directory mode names include the task id, so no conflict.
+    # On conflict, print the actually conflicting file and exit 1.
     out, gen_type = argv[0], argv[1]
     count = int(argv[2]) if (argv[2] or "").isdigit() else 1
     if out.endswith(("/", os.sep)) or os.path.isdir(out):
@@ -4424,7 +4445,7 @@ def cmd_out_free(argv):
         raise SystemExit(1)
 
 def cmd_check_ref(argv):
-    # 按文件内容（文件头）判断，而不是扩展名：假 png 在本地就拦下，不必上传。
+    # Judge by file content (header), not extension: a fake png is caught locally without uploading.
     path = argv[0]
     if os.path.getsize(path) > 10 << 20 or not sniff_ext(path):
         raise SystemExit(1)
@@ -4443,14 +4464,14 @@ def sniff_ext(path):
     return ""
 
 def cmd_sniff(argv):
-    # argv: file plannedExt → 打印应使用的扩展名：仅在图片格式之间按文件头纠正平台元数据（平台曾把 PNG 标成 jpg）。
+    # argv: file plannedExt -> print the extension to use: only corrects platform metadata between image formats by file header (the platform once labeled PNG as jpg).
     planned = argv[1].lower().lstrip(".")
     real = sniff_ext(argv[0])
     print(real if planned in IMAGE_EXTS and real and real != planned and not (planned == "jpeg" and real == "jpg") else planned)
 
 def cmd_validate(argv):
     # argv: modelsJson genType model extra refCount promptLen outArg
-    # 用平台 gen models 返回的 limits 在提交前校验；越界打印 "param<TAB>allowed<TAB>message" 并退出 1。
+    # Validate before submit using limits from platform gen models; when out of range print "param<TAB>allowed<TAB>message" and exit 1.
     data, gen_type, want, extra = load(argv[0]), argv[1], argv[2], argv[3]
     ref_count, prompt_len, out = int(argv[4]), int(argv[5]), argv[6]
     params = dict(kv.partition("=")[::2] for kv in extra.split(";") if kv)
@@ -4459,11 +4480,11 @@ def cmd_validate(argv):
         raise SystemExit(1)
     models = next((g.get("models") or [] for g in data.get("groups") or [] if g.get("genType") == gen_type), [])
     if not models:
-        raise SystemExit(3)  # 该类型对此账号未开放
+        raise SystemExit(3)  # this type is not enabled for this account
     if want:
         pick = next((m for m in models if m.get("model") == want), None)
         if pick is None:
-            # 模型名写错或用了别的类型的模型：按参数错误报，别让 agent 误以为平台没开放。
+            # Wrong model name or a model of another type: report as a param error so the agent doesn't think the platform hasn't enabled it.
             fail("--model", ",".join(m.get("model", "") for m in models), f"model {want} is not available for {gen_type}")
     else:
         pick = next((m for m in models if m.get("isDefault")), models[0])
@@ -4547,7 +4568,7 @@ def cmd_ledger_task(argv):
             merged += [f for f in v.split("\n") if f and f not in merged]
             record[k] = merged
         elif k == "status" and record.get("status") in ("done", "failed") and v not in ("done", "failed"):
-            # 状态只前进：已完成/已失败的任务不会因为重跑或超时退回 pending/running（用于判断本次是否是复用）。
+            # Status only moves forward: done/failed tasks never revert to pending/running on rerun or timeout (used to tell whether this run is a reuse).
             continue
         elif v.isdigit():
             record[k] = int(v)
@@ -4627,7 +4648,7 @@ def cmd_list(argv):
         print("tasks=0")
 
 def cmd_estimate(argv):
-    # argv: modelsJson genType model count → "model<TAB>estimate<TAB>mode"；image 按请求张数估算，其余用 estimatedMax。
+    # argv: modelsJson genType model count -> "model<TAB>estimate<TAB>mode"; image estimates by requested count, others use estimatedMax.
     data, gen_type, want = load(argv[0]), argv[1], argv[2]
     count = int(argv[3]) if (argv[3] or "").isdigit() else 1
     for g in data.get("groups") or []:
@@ -4674,7 +4695,7 @@ def cmd_usage(argv):
         print("transactions=0")
     for t in items:
         when = time.strftime("%Y-%m-%d %H:%M", time.localtime((t.get("createAt") or 0) / (1000 if (t.get("createAt") or 0) > 1e11 else 1)))
-        # source 区分这笔流水是否由 Builda（生成接口 caller=platform）发起；同账号在 App 里的消费标 app/other。
+        # source tells whether this entry was initiated by Builda (gen API caller=platform); consumption by the same account in the App is marked app/other.
         source = "builda" if t.get("caller") == "platform" else (t.get("caller") or "app/other")
         print(f"time={when} change={t.get('change','')} balance-after={t.get('balanceAfter','')} source={source} "
               f"type={t.get('genType','') or '-'} task={t.get('taskId','') or '-'} "
@@ -4682,7 +4703,7 @@ def cmd_usage(argv):
     print("more=" + ("no" if data.get("noMore", True) else "yes"))
 
 def params_obj(v):
-    # "k=v;k=v" → 对象，数字值转成整数
+    # "k=v;k=v" -> object, numeric values converted to integers
     out = {}
     for kv in (v or "").split(";"):
         if kv:
@@ -4706,7 +4727,7 @@ def cmd_to_json(argv):
             k, _, v = line.partition("=")
             key = re.sub(r"-([a-z])", lambda m: m.group(1).upper(), k)
             val = int(v) if re.fullmatch(r"-?\d+", v) else v
-            # 让 JSON 类型可直接用：是/否 → 布尔，running → 数组，params → 对象。
+            # Make JSON types directly usable: yes/no -> boolean, running -> array, params -> object.
             if key in ("reused", "charged", "newGeneration", "newIgnored", "energySettled") and v in ("yes", "no"):
                 val = v == "yes"
             elif key == "running":
@@ -4714,7 +4735,7 @@ def cmd_to_json(argv):
             elif key == "params":
                 val = params_obj(v)
             if key == "hint" and "hint" in obj:
-                obj["hint"] = obj["hint"] + "; " + v  # hint 始终是一个字符串
+                obj["hint"] = obj["hint"] + "; " + v  # hint is always a single string
                 continue
             if key in ("file", "md5", "dimensions"):
                 obj.setdefault(key + "s" if key != "dimensions" else key, []).append(val)
@@ -4736,12 +4757,12 @@ PY
 gen_py() { python3 -c "$GEN_PY" "$@"; }
 
 GEN_CLI="./$ROOT/builda"
-# 能量不足时原样转告用户的充值路径（面向用户的中文，agent 不要改写）。
-GEN_TOPUP_HINT="在 Builda App 里做一个 AI 游戏，然后连续点击右上角按钮 3 次，进入「能量中心」充值"
+# Top-up path relayed verbatim to the user when Credits are insufficient (user-facing text; the agent must not rewrite it).
+GEN_TOPUP_HINT="In the Builda App, create an AI game, then tap the top-right button 3 times in a row to open the Credits page and top up"
 
-# gen_need_value：缺值或值本身像选项（-o --json、--prompt --dry-run）都按参数错误退出，绝不能带着错位的参数去提交扣费。
-# 真要以 - 开头的值时用 --opt=value 写法。
-# gen_retry_hint 按阶段给重试建议：还没有任务时明确"未创建任务、未扣费"，已有任务时才提示续上原任务。
+# gen_need_value: a missing value or a value that looks like an option (-o --json, --prompt --dry-run) exits as a param error; never submit and charge with misaligned args.
+# Use --opt=value when a value really starts with -.
+# gen_retry_hint gives retry advice per stage: with no task yet, state clearly "no task created, not charged"; only with a task, suggest resuming it.
 gen_retry_hint() {
   if [ -z "$GEN_TASK_ID" ]; then
     printf 'no task was created and nothing was charged; wait about a minute, then run the same command again'
@@ -4750,13 +4771,13 @@ gen_retry_hint() {
   fi
 }
 
-# gen_retry_next 已有任务时给出可执行的续等命令；还没有任务时没有命令可给（原样重跑即可）。
+# gen_retry_next gives a runnable resume-wait command when a task exists; with no task there is no command to give (just rerun as-is).
 gen_retry_next() {
   [ -z "$GEN_TASK_ID" ] || gen_next_wait
 }
 
-# gen_param_error 本地参数错误统一格式：param / allowed / charged=no，与平台 limits 校验一致。
-# 用法：gen_param_error <param> <allowed> [error] [hint]
+# gen_param_error: unified format for local param errors: param / allowed / charged=no, consistent with platform limits validation.
+# Usage: gen_param_error <param> <allowed> [error] [hint]
 gen_param_error() {
   gen_emit param "$1"
   gen_emit allowed "$2"
@@ -4773,7 +4794,7 @@ gen_need_value() {
   fi
 }
 
-# gen_quote 让 next= 可以原样粘贴执行：安全字符原样输出，其余加双引号（保留 UTF-8，不用 bash 专用转义）。
+# gen_quote makes next= paste-and-run: safe chars output as-is, others double-quoted (keeps UTF-8, no bash-specific escapes).
 gen_quote() {
   if [[ "$1" =~ ^[A-Za-z0-9._/:@+-]+$ ]]; then
     printf '%s' "$1"
@@ -4782,7 +4803,7 @@ gen_quote() {
   fi
 }
 
-# gen_emit 写一行结果：人读模式直接打印；--json 模式先累积，结束时由 gen_finish 合成一个对象。
+# gen_emit writes one result line: printed directly in human mode; in --json mode accumulated and merged into one object by gen_finish.
 gen_emit() {
   printf '%s=%s\n' "$1" "$2" >> "$GEN_RESULT_FILE"
   [ "$GEN_JSON" = "1" ] || printf '%s=%s\n' "$1" "$2"
@@ -4803,8 +4824,8 @@ gen_finish() {
 
 gen_progress() { printf 'gen| %s\n' "$*" >&2; }
 
-# 用法：gen_die <exit> <error> [hint] [next]。hint= 是给人/agent 读的说明；next= 只放可以原样执行的命令（没有就不输出）。
-# 生成命令在还没有任务时出错，一律带 charged=no：没有提交、没有扣费。
+# Usage: gen_die <exit> <error> [hint] [next]. hint= is an explanation for humans/agents; next= holds only a runnable command (omitted if none).
+# When a gen command fails before any task exists, always include charged=no: nothing submitted, nothing charged.
 gen_die() {
   local code="$1" error="$2" hint="${3:-}" next="${4:-}"
   if [ "${GEN_IS_GENERATE:-0}" = "1" ] && [ -z "$GEN_TASK_ID" ]; then gen_emit_once charged no; fi
@@ -4824,7 +4845,7 @@ gen_need_auth() {
   [ -f "$TOKEN_FILE" ] || gen_die 3 auth-required "authorize first (the user approves in the browser), then rerun this command" "$GEN_CLI auth"
 }
 
-# 以下 gen_* 取值函数把结果写全局变量而不是 echo：gen_die 必须在主 shell 里执行才能真正退出。
+# The gen_* getters below write globals instead of echoing: gen_die must run in the main shell to actually exit.
 gen_parse_duration() {
   local raw="$1" n="" mult=1
   case "$raw" in
@@ -4843,7 +4864,7 @@ gen_next_wait() {
   printf '%s' "$cmd"
 }
 
-# gen_api METHOD PATH [curl args...]：成功时把响应体写入 $GEN_BODY 文件；失败时按契约退出。
+# gen_api METHOD PATH [curl args...]: on success writes the response body to the $GEN_BODY file; on failure exits per the contract.
 gen_api() {
   local method="$1" path="$2" rc
   shift 2
@@ -4852,7 +4873,7 @@ gen_api() {
   hdr="$(mktemp)"
   rc=0
   authenticated_http_response "gen $path" -X "$method" "$BUILDA_BASE$path" -D "$hdr" "$@" 2>/dev/null || rc=$?
-  # 服务端每个响应都带 X-Request-Id：出错时输出给用户/agent，反馈问题时凭它直接定位后端日志。
+  # Every server response carries X-Request-Id: print it to the user/agent on error so feedback can locate backend logs directly.
   GEN_REQUEST_ID="$(tr -d '\r' < "$hdr" | sed -n 's/^[Xx]-[Rr]equest-[Ii]d:[[:space:]]*//p' | tail -n 1)"
   rm -f "$hdr"
   if [ "${AUTH_HTTP_STATUS:-}" = "401" ]; then
@@ -4874,13 +4895,13 @@ gen_fail_body() {
   { read -r code; read -r retriable; read -r running; read -r msg; read -r platform_req; } < <(gen_py error "$GEN_BODY")
   [ -z "$msg" ] || gen_emit message "$msg"
   [ -z "$code" ] || gen_emit code "$code"
-  # request-id 是反馈问题时要给的编号；platform-request-id 是平台内部编号，仅供对账。
+  # request-id is the number to give when reporting issues; platform-request-id is the platform's internal number, for reconciliation only.
   [ -z "${GEN_REQUEST_ID:-}" ] || gen_emit request-id "$GEN_REQUEST_ID"
   [ -z "$platform_req" ] || gen_emit platform-request-id "$platform_req"
   case "$code" in
     140006)
       gen_emit energy-topup "$GEN_TOPUP_HINT"
-      gen_die 4 insufficient-energy "tell the user their Builda energy is not enough and relay the energy-topup line to them word for word; do not retry or split the request" ;;
+      gen_die 4 insufficient-energy "tell the user their Builda Credits are not enough and relay the energy-topup steps to them without changing them; do not retry or split the request" ;;
     140007) gen_die 5 content-rejected "rewrite the prompt without sensitive content and run again; if it fails again, ask the user" ;;
     140101) gen_die 1 not-available "this model or generation type is not open for this account yet" "$GEN_CLI gen models" ;;
     140102|10003) gen_die 2 invalid-params "the platform rejected a parameter: ${msg:-see gen models for limits}; fix it and run again" ;;
@@ -4915,7 +4936,7 @@ gen_upload_ref() {
   GEN_REF_ID="$ref"
 }
 
-# gen_estimate 模型不可用时把 GEN_ESTIMATE_LINE 置空而不是退出，由调用方决定先报告余额再退出。
+# gen_estimate: when the model is unavailable, clear GEN_ESTIMATE_LINE instead of exiting; the caller reports the balance first, then exits.
 gen_estimate() {
   local gen_type="$1" model="$2" count="$3"
   gen_api GET "/api/v1/agent/gen/models?genType=$gen_type"
@@ -4929,7 +4950,7 @@ gen_balance_value() {
   rm -f "$GEN_BODY"
 }
 
-# gen_balance_soft 用于成功收尾：文件已落盘，余额查询失败只省略该行，不改变退出码。
+# gen_balance_soft is for successful wrap-up: the file is already written; a failed balance query just omits that line without changing the exit code.
 gen_balance_soft() {
   local rc=0 f
   GEN_BALANCE=""
@@ -4942,7 +4963,7 @@ gen_balance_soft() {
   fi
 }
 
-# gen_check_out 生成物只能落在项目内：拒绝绝对路径、越出项目的 ..，以及工具链与 Git 目录。
+# gen_check_out: outputs must stay inside the project: reject absolute paths, .. escaping the project, and toolchain and Git dirs.
 gen_check_out() {
   [ -n "$GEN_OUT_ARG" ] || return 0
   gen_py check-out "$GEN_OUT_ARG" || gen_param_error -o "a relative path inside the project (not .builda-agent/ or .git/)" invalid-output
@@ -5045,7 +5066,7 @@ gen_generate() {
   done
   gen_need_auth
   if [ "$dry_run" = "1" ]; then
-    # dry-run 与真正提交结论一致：会产生新扣费且目标文件已存在时，同样以 8 拒绝。
+    # dry-run reaches the same verdict as a real submit: when a new charge would occur and the target file exists, also refuse with 8.
     gen_request_fresh "$gen_type" "$model" "$prompt" "$new" "$extra" "${#refs[@]}"
     gen_check_conflict "$gen_type" "${count:-1}" "$force"
   fi
@@ -5062,7 +5083,7 @@ gen_generate() {
   gen_wait_task "$gen_type" "$wait_s" "$force"
 }
 
-# gen_type_params 校验类型专属参数并生成规范化 extra（按 key 排序的 "k=v;k=v"）；范围以平台为准，本地只挡明显错误。
+# gen_type_params validates type-specific params and builds the normalized extra ("k=v;k=v" sorted by key); the platform owns ranges, locally we only block obvious errors.
 gen_type_params() {
   local gen_type="$1" aspect="$2" count="$3" background="$4" faces="$5" parts=""
   GEN_MAX_REFS=4
@@ -5090,11 +5111,11 @@ gen_type_params() {
   GEN_EXTRA="$parts"
 }
 
-# gen_budget 只在 --dry-run / --max-energy 时查模型价格；预估是上限（audio 按 120 秒计）。
+# gen_budget looks up model prices only for --dry-run / --max-energy; the estimate is an upper bound (audio assumes 120 seconds).
 gen_budget() {
   local gen_type="$1" model="$2" dry_run="$3" max_energy="$4" count="$5" extra="$6" ref_count="$7" prompt_len="$8" line est bad
-  # 每次生成前都拿平台 limits 做本地校验：dry-run 与真正提交给出同样的结论，越界参数不会走到提交。
-  # dry-run 先报余额：即使模型未开放，agent 也能一次知道"没开放"和"余额多少"。
+  # Before every generation, validate locally with platform limits: dry-run and real submit reach the same verdict; out-of-range params never reach submit.
+  # dry-run reports the balance first: even if the model isn't enabled, the agent learns both "not enabled" and "how much balance" at once.
   if [ "$dry_run" = "1" ]; then
     gen_balance_value
     gen_emit energy-balance "$GEN_BALANCE"
@@ -5127,7 +5148,7 @@ gen_budget() {
     fi
     if [ "${GEN_BALANCE:-0}" -lt "$est" ] 2>/dev/null; then
       gen_emit energy-topup "$GEN_TOPUP_HINT"
-      gen_die 4 insufficient-energy "the balance is below this estimate; relay the energy-topup line to the user word for word before generating"
+      gen_die 4 insufficient-energy "the balance is below this estimate; relay the energy-topup steps to the user without changing them before generating"
     fi
     gen_finish 0
   fi
@@ -5137,22 +5158,22 @@ gen_budget() {
   fi
 }
 
-# gen_request_fresh 判断这次请求是否会产生新扣费（首次、--new 且上次已结束、或上次同参请求已失败）。
-# 带参考图时本地无法预知 refId，按新请求处理。
+# gen_request_fresh decides whether this request incurs a new charge (first time, --new after the last one finished, or the last same-param request failed).
+# With reference images the refId can't be predicted locally, so treat it as a new request.
 gen_request_fresh() {
   local gen_type="$1" model="$2" prompt="$3" new="$4" extra="$5" ref_count="$6" base _rid _body state
   GEN_FRESH=1
   [ "$ref_count" = "0" ] || return 0
   { read -r base; read -r _rid; read -r _body; } < <(gen_py request "$gen_type" "$model" "$prompt" "" "$extra")
   state="$(gen_py request-state "$GEN_DIR" "$base")"
-  [ -n "$state" ] || return 0                                # 没有记录：新请求
-  if [ "$(printf '%s' "$state" | cut -f2)" != "1" ]; then GEN_FRESH=0; return 0; fi   # 上次还在跑：续上
-  [ "$new" = "1" ] && return 0                               # 已结束 + --new：新请求
-  [ "$(gen_py ledger-get "$GEN_DIR" "$(printf '%s' "$state" | cut -f3)" status)" = "failed" ] && return 0  # 上次失败：重新提交
-  GEN_FRESH=0                                                # 已完成：复用
+  [ -n "$state" ] || return 0                                # no record: new request
+  if [ "$(printf '%s' "$state" | cut -f2)" != "1" ]; then GEN_FRESH=0; return 0; fi   # last one still running: resume
+  [ "$new" = "1" ] && return 0                               # finished + --new: new request
+  [ "$(gen_py ledger-get "$GEN_DIR" "$(printf '%s' "$state" | cut -f3)" status)" = "failed" ] && return 0  # last one failed: resubmit
+  GEN_FRESH=0                                                # done: reuse
 }
 
-# gen_check_conflict 会产生新扣费时先检查目标文件，冲突就在提交前拒绝（报出真正冲突的文件）。
+# gen_check_conflict: when a new charge would occur, check target files first and refuse before submit on conflict (reporting the actually conflicting file).
 gen_check_conflict() {
   local gen_type="$1" count="$2" force="$3" hit
   [ "$GEN_FRESH" = "1" ] && [ "$force" != "1" ] && [ -n "$GEN_OUT_ARG" ] || return 0
@@ -5176,13 +5197,13 @@ gen_submit() {
   local prev_failed=0
   if [ -n "$state" ] && [ "$done_flag" = "1" ] && [ "$(gen_py ledger-get "$GEN_DIR" "$prev_task" status)" = "failed" ]; then prev_failed=1; fi
   if { [ "$new" = "1" ] || [ "$prev_failed" = "1" ]; } && { [ -z "$state" ] || [ "$done_flag" = "1" ]; }; then
-    # --new，或上次同参请求已失败（失败不扣费）：派生新 nonce 重新提交，不再复用失败结果。
+    # --new, or the last same-param request failed (failures aren't charged): derive a new nonce and resubmit, no longer reusing the failed result.
     nonce="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
     done_flag=0
     fresh=1
     [ "$prev_failed" != "1" ] || gen_emit hint "the previous identical request failed (not charged); submitted it again as a new generation"
   elif [ -n "$state" ] && [ "$new" = "1" ]; then
-    # 同参请求还在进行中：--new 不生效，续上原任务，必须明说。
+    # A same-param request is still in progress: --new has no effect; resume the original task and say so explicitly.
     gen_emit new-ignored yes
     gen_emit hint "the identical earlier request (task $prev_task) is still running, so --new was not applied and this run continues it; run --new again after it finishes for another take"
     gen_progress "--new ignored: the identical earlier request is still running"
@@ -5192,7 +5213,7 @@ gen_submit() {
   if [ -n "$nonce" ]; then
     { read -r base; read -r request_id; read -r body; } < <(gen_py request "$gen_type" "$model" "$prompt" "$nonce" "$extra" "$@")
   fi
-  # 会产生新扣费的请求先检查目标文件：冲突时在提交前拒绝，不能先扣费再报文件已存在。
+  # Requests that incur a new charge check target files first: refuse before submit on conflict; never charge first and then report the file exists.
   GEN_FRESH="$fresh"
   gen_check_conflict "$gen_type" "${GEN_COUNT:-1}" "$force"
   gen_progress "step=submit type=$gen_type"
@@ -5203,7 +5224,7 @@ gen_submit() {
   rm -f "$GEN_BODY"
   [ -n "$GEN_TASK_ID" ] || gen_die 1 submit-failed "the platform returned no task id; report it to the user with the request-id"
   if [ "$status" = "failed" ] && [ "$new" != "1" ] && [ "${GEN_RESUBMITTED:-0}" != "1" ]; then
-    # 平台重放了一个已失败的同参任务（本地台账缺失时）：失败不扣费，自动换 nonce 重新提交一次。
+    # The platform replayed a failed same-param task (when the local ledger is missing): failures aren't charged, so switch nonce and resubmit once automatically.
     GEN_RESUBMITTED=1
     GEN_TASK_ID=""
     gen_emit hint "the platform returned an earlier failed attempt of this request (not charged); submitted it again as a new generation"
@@ -5222,7 +5243,7 @@ gen_submit() {
   gen_py ledger-task "$GEN_DIR" "$GEN_TASK_ID" "genType=$gen_type" "model=$model" "prompt=$prompt" "out=$GEN_OUT_ARG" "status=${status:-pending}" "params=$extra"
   gen_emit task "$GEN_TASK_ID"
   if [ "$fresh" = "1" ] && { [ "$new" = "1" ] || [ "${GEN_RESUBMITTED:-0}" = "1" ] || [ -n "$nonce" ]; }; then
-    # new-generation=yes：提交了一次新的生成，成功才扣费；失败、审核拒绝不扣。
+    # new-generation=yes: a new generation was submitted; charged only on success; failures and moderation rejections aren't charged.
     gen_progress "submitted as a new generation; it is charged only if it succeeds"
     gen_emit new-generation yes
   fi
@@ -5235,7 +5256,7 @@ gen_submit() {
   gen_emit energy-estimate "${est:-0}"
 }
 
-# gen_wait_task 有上限地轮询；done → 下载并报告实际消耗与余额；failed → 5；超时 → 6。
+# gen_wait_task polls with a cap; done -> download and report actual cost and balance; failed -> 5; timeout -> 6.
 gen_wait_task() {
   local gen_type="$1" wait_s="$2" force="$3" start now elapsed interval max_interval status last_beat=0
   start="$(date +%s)"
@@ -5283,7 +5304,7 @@ gen_task_failed() {
   if [ "$code" = "content_violation" ]; then
     gen_die 5 content-rejected "rewrite the prompt without sensitive content and run again (a changed prompt is a new request); if it fails again, ask the user"
   fi
-  gen_die 5 task-failed "no energy was charged; running the same command again submits a fresh attempt automatically; if it fails again, report to the user (it may also be a content rejection the platform did not label)"
+  gen_die 5 task-failed "no Credits were charged; running the same command again submits a fresh attempt automatically; if it fails again, report to the user (it may also be a content rejection the platform did not label)"
 }
 
 gen_task_done() {
@@ -5293,11 +5314,11 @@ gen_task_done() {
   cost="$(gen_py get "$task_file" energyCost)"
   settled="$(gen_py get "$task_file" energySettled)"
   prior="$(gen_py ledger-get "$GEN_DIR" "$GEN_TASK_ID" status)"
-  # 任务在平台已完成并结算：先记账、先报告消耗，再处理本地下载（下载失败也不能让用户不知道已扣费）。
+  # The task is done and settled on the platform: record and report the cost first, then handle the local download (a failed download must not hide that Credits were charged).
   gen_py ledger-task "$GEN_DIR" "$GEN_TASK_ID" status=done "energyCost=${cost:-0}" "model=$(gen_py get "$task_file" model)"
   gen_py request-done-for-task "$GEN_DIR" "$GEN_TASK_ID"
   gen_emit status done
-  # 这次交付的是此前已完成的任务（本地台账或平台重放都显示已完成）：显式标出是旧结果、生成于何时。
+  # This delivers a previously completed task (local ledger or platform replay shows done): explicitly mark it as an old result and when it was generated.
   local earlier=0 created
   if [ "$prior" = "done" ] || [ "${GEN_SUBMIT_STATUS:-}" = "done" ]; then earlier=1; fi
   if [ "$earlier" = "1" ]; then
@@ -5307,7 +5328,7 @@ gen_task_done() {
     [ -z "$created" ] || gen_emit reused-from "$created"
   fi
   if [ "$earlier" = "1" ]; then
-    # 任务此前已完成并结算：这次只是复用/补下载，本次消耗为 0，原任务花费单独给出。
+    # The task was already completed and settled: this is only a reuse/re-download, cost this time is 0, and the original task's cost is given separately.
     gen_emit energy-cost 0
     gen_emit task-energy-cost "${cost:-0}"
   else
@@ -5326,13 +5347,13 @@ gen_task_done() {
   [ -z "$GEN_BALANCE" ] || gen_emit energy-balance "$GEN_BALANCE"
   [ "$GEN_BALANCE" != "0" ] || gen_emit energy-topup "$GEN_TOPUP_HINT"
   if [ "$earlier" = "1" ] && [ "${GEN_FROM_GENERATE:-0}" = "1" ]; then
-    # 平台修过问题后，同样的请求仍会命中旧任务：用 hint 明确告知这是旧结果（next= 只放命令，不放说明）。
+    # After the platform fixes an issue, the same request still hits the old task: use hint to say this is an old result (next= holds only commands, no explanations).
     gen_emit hint "this is the earlier result generated at ${created:-an earlier time} (no new charge); tell the user it is not a new generation, and if they want a fresh one, rerun with --new (charged)"
   fi
   gen_finish 0
 }
 
-# gen_download_one 原子写入：同目录 .part → md5 校验 → rename；已存在且内容一致视为成功。
+# gen_download_one writes atomically: .part in the same dir -> md5 check -> rename; an existing file with identical content counts as success.
 gen_download_one() {
   local url="$1" md5="$2" dest="$3" force="$4" dims="${5:-}" dir part got crc=0
   GEN_FINAL_DEST="$dest"
@@ -5347,7 +5368,7 @@ gen_download_one() {
     [ "$force" = "1" ] || gen_die 8 output-exists "$dest already exists with different content; pass another -o or add --force"
   fi
   dir="$(dirname "$dest")"
-  # 本地写入问题（目录建不了、只读）单独报 write-failed：重复下载解决不了，不能引导 agent 进入重试循环。
+  # Local write problems (can't create dir, read-only) are reported as write-failed: re-downloading won't help, so don't lead the agent into a retry loop.
   mkdir -p "$dir" 2>/dev/null || gen_die 1 write-failed "cannot create directory $dir (check the path and permissions); the task is done and will not be charged again: fix the path, then run gen download $GEN_TASK_ID -o <a writable path>"
   [ -w "$dir" ] || gen_die 1 write-failed "cannot write into $dir (read-only); the task is done and will not be charged again: fix the permissions, then run gen download $GEN_TASK_ID -o <a writable path>"
   part="$dir/.$(basename "$dest").part"
@@ -5366,7 +5387,7 @@ gen_download_one() {
     rm -f "$part"
     gen_die 7 checksum-mismatch "the downloaded file failed its checksum; download it again" "$GEN_CLI gen download $GEN_TASK_ID -o $(gen_quote "$dest")"
   fi
-  # 扩展名以文件内容为准：平台格式元数据与实际不符时纠正（引擎可能按扩展名解码）。
+  # The extension follows the file content: correct it when platform format metadata doesn't match the actual data (engines may decode by extension).
   local planned real
   planned="${dest##*.}"
   real="$(gen_py sniff "$part" "$planned")"
@@ -5385,7 +5406,7 @@ gen_download_one() {
   gen_note_renamed "$dest"
 }
 
-# gen_note_renamed 实际文件扩展名与 -o 要求的不一致时（按内容或平台返回格式纠正）明确告知，避免代码里写死错误的文件名。
+# gen_note_renamed: when the actual extension differs from what -o asked for (corrected by content or the platform's returned format), say so explicitly so code doesn't hardcode a wrong file name.
 gen_note_renamed() {
   local final="$1" want
   [ "${GEN_RENAME_NOTED:-0}" = "0" ] || return 0
@@ -5443,7 +5464,7 @@ gen_task_command() {
       local params; params="$(gen_py ledger-get "$GEN_DIR" "$GEN_TASK_ID" params)"
       [ -z "$params" ] || gen_emit params "$params"
       gen_emit energy-estimate "$(gen_py get "$GEN_BODY" estimatedEnergy)"
-      # 进行中的任务还没有结算：不输出 energy-cost，避免被读成"免费"。
+      # In-progress tasks aren't settled yet: don't output energy-cost, to avoid it being read as "free".
       case "$st" in done|failed) gen_emit energy-cost "$(gen_py get "$GEN_BODY" energyCost)" ;; esac
       local fc fr; fc="$(gen_py get "$GEN_BODY" failCode)"; fr="$(gen_py get "$GEN_BODY" failReason)"
       [ -z "$fc" ] || gen_emit fail-code "$fc"
@@ -5467,7 +5488,7 @@ gen_info_command() {
   local limit=20 type="" gen_type="" opt
   while [ "$#" -gt 0 ]; do
     opt="${1%%=*}"
-    # 每个子命令只接受自己的选项，不相关的选项报错而不是静默忽略。
+    # Each subcommand accepts only its own options; unrelated options error out instead of being silently ignored.
     case "$sub:$opt" in
       *:--json) GEN_JSON=1 ;;
       *:-h|*:--help) gen_usage; gen_finish 0 ;;
@@ -5521,7 +5542,7 @@ gen_command() {
   need_python3
   GEN_RESULT_FILE="$(mktemp)"
   local arg
-  # --json 在解析任何参数前生效：参数错误也要输出 JSON，与参数顺序无关。
+  # --json takes effect before parsing any args: param errors must also output JSON, regardless of arg order.
   for arg in "$@"; do [ "$arg" != "--json" ] || GEN_JSON=1; done
   case "$sub" in
     audio|music|image|model3d) GEN_IS_GENERATE=1; gen_generate "$sub" "$@" ;;
@@ -5739,10 +5760,10 @@ studio_auth() {
   echo "authorization-source=studio"
 }
 
-# 素材工具链（kind=asset，ADR 0046）的 builda-asset 把本文件当函数库 source：到此为止，不执行命令分发。
+# The asset toolchain's (kind=asset, ADR 0046) builda-asset sources this file as a function library: stop here, no command dispatch.
 if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
 
-# 素材项目由同目录的 builda-asset 处理；本文件对素材项目只做这一次路由。
+# Asset projects are handled by the sibling builda-asset; this file only routes asset projects this once.
 if [ -f "$SELF_DIR/kind" ] && [ "$(head -n 1 "$SELF_DIR/kind" | tr -d '\r[:space:]')" = "asset" ]; then
   [ -x "$SELF_DIR/builda-asset" ] || { echo "kind=asset but $SELF_DIR/builda-asset is missing; reinstall from $BUILDA_AGENT_BASE/agent/setup-asset.md" >&2; exit 1; }
   exec "$SELF_DIR/builda-asset" "$@"
@@ -5752,7 +5773,7 @@ original_args=("$@")
 cmd="${1:-}"
 shift || true
 case "$cmd" in
-  ""|-h|--help|help|version|--version|-v) ;; # 这些命令不依赖项目上下文
+  ""|-h|--help|help|version|--version|-v) ;; # these commands do not depend on project context
   *) require_project_context "${original_args[@]}" ;;
 esac
 legacy_auth_migrate
@@ -5922,7 +5943,7 @@ BUILDA_DIAGNOSTICS_PY
       echo "project-binding=$PROJECT_FILE"
       echo "project-state-dir=$(dirname "$PROJECT_FILE")"
     else
-      # 未绑定游戏是正常状态（例如只用 builda gen 生成素材）：给中性提示，不做依赖游戏身份的 Cloud State 检查。
+      # No bound game is a normal state (e.g. only using builda gen to generate assets): give a neutral hint, skip Cloud State checks that depend on game identity.
       echo "project-game-id=none"
       echo "project-game-note=not bound to a Builda game yet; normal when only using builda gen, publishing binds it"
     fi
@@ -5961,8 +5982,8 @@ BUILDA_DIAGNOSTICS_PY
     ;;
   new-manifest)
     if [ -f "$MANIFEST" ]; then echo "$MANIFEST already exists"; exit 0; fi
-    # engine 按目录判定写入 manifest（后续 bundle-check/upload-build 以 manifest 为准）；
-    # unknown 兜底 godot，与后端"空=godot"口径一致
+    # engine is detected from the directory and written into the manifest (later bundle-check/upload-build follow the manifest);
+    # unknown falls back to godot, consistent with the backend's "empty = godot" convention
     detected_engine="$(detect_engine_value .)"
     case "$detected_engine" in
       godot|h5|unity) ;;

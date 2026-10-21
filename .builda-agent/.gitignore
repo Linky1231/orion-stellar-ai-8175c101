@@ -1,5 +1,5 @@
-# BuildaGame 自动管理：仅敏感或可再生运行态不入库。
-# builda/builda.ps1/builda.cmd、SKILL.md、VERSION、game.json 与 sdk-version 入库。
+# Managed by BuildaGame: only sensitive or regenerable runtime state is ignored.
+# builda/builda.ps1/builda.cmd, SKILL.md, VERSION, game.json and sdk-version are committed.
 AGENT_INSTALL.md
 publish.env
 md_*.md
