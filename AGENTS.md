@@ -24,4 +24,5 @@ $p = Join-Path $env:TEMP "builda-install.ps1"; iwr https://ai.builda.game/agent/
 - Personal data uses the local-data adapter: IndexedDB on the web and the official privateKV provider in Builda, so the game does not rely on blocked browser storage or remote database login; attachments remain data URLs.
 - Builda saved tables use stable orion_local_<table>_v1 keys, validate SDK results, and reject oversized writes without truncation to respect the platform save contract.
 - AI transport remains separate from persistence: the web keeps its existing AI endpoints and Builda keeps its bundled local model.
+- Builda packaging must include the validated GGUF model and local Wllama compatibility WASM/worker assets; Safari cannot depend on Wllama's default CDN fallback inside the sandbox.
 - Public editorial guides use SSR leaf routes with self-referencing metadata and source links; web-only navigation is passed into ChatApp through its optional header action so the standalone Builda entry remains independent of the router.

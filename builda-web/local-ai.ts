@@ -1,5 +1,8 @@
 // Offline AI for the Builda build: a small GGUF model runs inside the game via WebAssembly.
 import { Wllama } from "@wllama/wllama";
+import wasmUrl from "@wllama/wllama/esm/wasm/wllama.wasm?url";
+import compatWasmUrl from "@wllama/wllama-compat/wasm/wllama.wasm?url";
+import compatWorker from "@wllama/wllama-compat/wasm/wllama.js?raw";
 
 const SYSTEM =
   "Eres Orión Estellar, una asistente de IA amable y breve. Respondes siempre en español, con frases claras y cortas.";
@@ -9,11 +12,19 @@ let ready: Promise<Wllama> | null = null;
 function load(): Promise<Wllama> {
   if (!ready) {
     ready = (async () => {
-      const w = new Wllama({ default: new URL("./wasm/wllama.wasm", document.baseURI).href } as any, { suppressNativeLog: true });
-      const res = await fetch(new URL("./model.bin", document.baseURI).href);
+      const w = new Wllama({ default: new URL(wasmUrl, document.baseURI).href }, { suppressNativeLog: true });
+      // Safari needs Asyncify/MEMORY32. Never fall back to Wllama's external CDN in Builda.
+      w.setCompat({
+        wasm: new URL(compatWasmUrl, document.baseURI).href,
+        worker: { code: compatWorker },
+      });
+      const res = await fetch(new URL("./model.bin", document.baseURI).href).catch(() => {
+        throw new Error("No se pudo leer el modelo incluido en el juego. Cierra Orión y vuelve a abrirlo.");
+      });
       if (!res.ok) throw new Error(`No se pudo cargar el modelo local (${res.status}).`);
       const blob = await res.blob();
-      await w.loadModel([blob], { n_ctx: 2048, n_gpu_layers: 0 } as any);
+      if (await blob.slice(0, 4).text() !== "GGUF") throw new Error("El modelo local está incompleto. Actualiza Orión en Builda.");
+      await w.loadModel([blob], { n_ctx: 2048, n_gpu_layers: 0, n_threads: 1 });
       return w;
     })().catch((e) => {
       ready = null;
