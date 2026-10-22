@@ -1,5 +1,6 @@
 # Tasks
-- [ ] Replace the Builda assistant with a lighter complete model within platform limits, as accepted by the user, and test Spanish responses.
+- [x] Integrate and test complete quantized Gemma 3 270M (184,517,664 bytes) as a lighter local candidate; it loads and responds in Spanish in the Builda mock without runtime errors, but fails the requested conversational-quality goal.
+- [ ] Release a fluent Spanish model in Builda — blocked by poor quality of the tested small Gemma and size limits for stronger verified models; do not upload this experimental candidate as a quality fix. Gemma distribution also requires its license, notice, and enforceable use restrictions before release.
 - [ ] Fix and verify the local AI “Load failed” error in Builda and prepare its corrected version.
 - [x] Add and verify a public, source-backed AI tools for game development guide and link it from the web app.
 - [x] Remove login and open directly to chat in web and Builda.
