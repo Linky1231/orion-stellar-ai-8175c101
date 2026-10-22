@@ -5,8 +5,8 @@ description: BuildaGame (Builda) game publishing assistant. Use when the user as
 
 # BuildaGame Agent Skill
 
-<!-- BuildaGame agent 工具链版本：0.4.102 -->
-> BuildaGame agent toolchain version: 0.4.102
+<!-- BuildaGame agent 工具链版本：0.4.105 -->
+> BuildaGame agent toolchain version: 0.4.105
 
 Always reply to the user in the language they use. This guidance is written in English; that does not change the language you talk to the user in.
 
@@ -18,7 +18,7 @@ Your goal: build H5 from the game project, create a Builda draft and sync it to 
 the Builda app.
 
 **This file holds only always-on rules and the task routing table.** Details live in on-demand topics: read only those this task hits, not all at once.
-Topic URL prefix: `https://ai.builda.game/agent/releases/0.4.102/` (file names only below); prefer the full
+Topic URL prefix: `https://ai.builda.game/agent/releases/0.4.105/` (file names only below); prefer the full
 `skill-topic-*=` URLs `builda check` prints for this project's engine.
 
 ## Follow on every task
@@ -103,7 +103,7 @@ Give the receipt and how to check progress. In a new conversation, only if insta
 The SDK ships separately from the CLI. Every SDK task follows this order; do not require a second user prompt:
 
 1. Run `builda check`. No SDK and an integration task: run `builda sdk install` yourself; if unpublished/unavailable, report the blocker and retry next task.
-2. Keep the version in `.builda-agent/sdk-version` if present; restore missing code or guidance with `builda sdk install`. Run `builda sdk upgrade` only for explicit upgrade tasks; it also updates multiplayer deliverables in multiplayer projects; then re-read `.agents/skills/builda-online/SKILL.md`.
+2. Keep the version in `.builda-agent/sdk-version` if present; restore missing code or guidance with `builda sdk install`. On `sdk-latest=<version>` tell the user once (with `sdk-heads-up`). Run `builda sdk upgrade` only for explicit upgrade tasks (multiplayer follows); then re-read `.agents/skills/builda-online/SKILL.md`.
 3. Actually read `.builda-agent/sdk-guidance/<sdk-version>/SKILL.md`, then the local topics it cites. Install/upgrade prints the `sdk-guidance` path; downloaded ≠ read: you must read it before more code; re-read after upgrades.
 4. Legacy 0.4.x and earlier projects keep their pin; missing local guidance → also run `sdk install`: the CLI verifies/restores guidance from the legacy manifest and pins known SDK topic links to local files. Never follow mutable remote links in old Skills. Auth/upload commands follow the current base Skill; never up/downgrade the CLI due to old docs.
 5. latest is only for first selection and explicit upgrades; never apply latest guidance to old projects. CLI updates do not require game SDK updates.

@@ -22,7 +22,7 @@ ENV_FILE="$ROOT/publish.env"
 MANIFEST="${BUILDA_MANIFEST:-builda.publish.json}"
 PROJECT_FILE="${BUILDA_PROJECT_FILE:-$PROJECT_STATE_DIR/game.json}"
 LEGACY_PROJECT_FILE="${BUILDA_LEGACY_PROJECT_FILE:-builda.game.json}"
-VERSION="0.4.102"
+VERSION="0.4.105"
 RUNTIME_VERSION_FILE="$ROOT/VERSION"
 SDK_VERSION_FILE="$PROJECT_STATE_DIR/sdk-version"
 [ -f "$ENV_FILE" ] && . "$ENV_FILE"
@@ -1842,6 +1842,7 @@ check_update() {
     sdk_guidance || true
     echo "sdk-sync=independent (SDK version pinned per project; upgrade explicitly: builda sdk upgrade)"
     sdk_online_status
+    sdk_latest_hint "$sdkv"
   elif [ -d addons/builda ] || [ -d "$PROJECT_STATE_DIR/sdk/web" ]; then
     echo "sdk-version=unknown (missing $SDK_VERSION_FILE; run: builda sdk install)"
   else
@@ -2336,6 +2337,8 @@ body = {
     "engine": sys.argv[1], "gameId": sys.argv[2], "expectedSize": int(sys.argv[3]),
     "expectedSha256": sys.argv[4], "idempotencyKey": sys.argv[5],
 }
+if sys.argv[1] == "assets":
+    body.pop("engine")
 if sys.argv[6]:
     body["studioPayloadHash"] = sys.argv[6]
 print(json.dumps(body, separators=(",", ":")))
@@ -2343,7 +2346,7 @@ PY
 )"
   local -a request_args=(
     -X POST
-    "$BUILDA_BASE/api/v1/uploads/build/sessions"
+    "$BUILDA_BASE/api/v1/uploads/${upload_purpose:-build}/sessions"
     -H "Idempotency-Key: $idempotency"
     -H 'Content-Type: application/json'
     --data-binary "$request_body"
@@ -2381,6 +2384,7 @@ render_upload_recovery() {
   python3 -c '
 import datetime, json, re, sys
 mode = sys.argv[1]
+prefix = "assets " if sys.argv[3] == "assets" else ""
 try:
     data = json.load(sys.stdin)
 except (ValueError, TypeError):
@@ -2395,7 +2399,7 @@ if mode == "blocked":
     elif reason == "owner_active_limit":
         print("Your account has reached the active upload limit (3 across all games).", file=sys.stderr)
     else:
-        print("Check active uploads with: ./.builda-agent/builda upload-list --all (requires a server with recovery support).", file=sys.stderr)
+        print("Check active uploads with: ./.builda-agent/builda " + prefix + "upload-list --all (requires a server with recovery support).", file=sys.stderr)
     print("Retry the original unchanged ZIP to resume. Rebuilding a ZIP may create a different upload.", file=sys.stderr)
     if data.get("requestId"):
         print("Request ID: " + str(data["requestId"]), file=sys.stderr)
@@ -2404,7 +2408,7 @@ out = sys.stderr if mode == "blocked" else sys.stdout
 if not rows and mode != "blocked":
     print("No active uploads in this scope.", file=out)
     if sys.argv[2]:
-        print("Run upload-list --all to see uploads for your other games.", file=out)
+        print("Run " + prefix + "upload-list --all to see uploads for your other games.", file=out)
 def date(value):
     try:
         if int(value) <= 0:
@@ -2413,19 +2417,20 @@ def date(value):
     except (ValueError, TypeError, OverflowError, OSError):
         return "unknown"
 for row in rows:
+    command = "assets " if row.get("purpose") == "assets" else ""
     sid = str(row.get("id", ""))
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", sid):
         continue
     print("Session: {}  game={}  status={}  size={} bytes".format(sid, row.get("gameId") or "(new game)", row.get("status"), row.get("expectedSize")), file=out)
     print("  Created: {}  Last activity: {}  Expires: {}".format(date(row.get("createdAt")), date(row.get("lastActivityAt")), date(row.get("expiresAt"))), file=out)
-    print("  Inspect progress: ./.builda-agent/builda upload-status " + sid, file=out)
+    print("  Inspect progress: ./.builda-agent/builda " + command + "upload-status " + sid, file=out)
     if row.get("canCancel") is True:
-        print("  To abandon this upload: ./.builda-agent/builda upload-cancel " + sid, file=out)
+        print("  To abandon this upload: ./.builda-agent/builda " + command + "upload-cancel " + sid, file=out)
     else:
         print("  Cancellation is currently unavailable; inspect status before retrying.", file=out)
 if rows:
-    print("No uploads were canceled. After explicitly canceling an abandoned upload, retry publish.", file=out)
-' "$mode" "${2:-}"
+    print("No uploads were canceled. After explicitly canceling an abandoned upload, retry the original upload command.", file=out)
+' "$mode" "${2:-}" "${upload_purpose:-build}"
 }
 
 list_upload_sessions() {
@@ -2439,7 +2444,7 @@ list_upload_sessions() {
   done
   if [ "$json" -eq 0 ]; then need_python3; fi
   if [ "$all" -eq 0 ]; then game_id="$(project_game_id)"; fi
-  local -a request_args=(-G "$BUILDA_BASE/api/v1/uploads/build/sessions")
+  local -a request_args=(-G "$BUILDA_BASE/api/v1/uploads/${upload_purpose:-build}/sessions")
   if [ -n "$game_id" ]; then request_args+=(--data-urlencode "gameId=$game_id"); fi
   authenticated_http_response "list upload sessions" "${request_args[@]}" || return $?
   if [ "$AUTH_HTTP_STATUS" != "200" ]; then
@@ -2461,6 +2466,10 @@ run_session_upload() {
   case "$SESSION_HTTP_STATUS" in
     200|201) ;;
     404|405)
+      if [ "${upload_purpose:-build}" = "assets" ]; then
+        echo "Server does not support assets upload sessions; update the backend before retrying." >&2
+        return 1
+      fi
       if [ "$expected_size" -le 209715200 ]; then
         echo "upload-session=unsupported; falling back to the legacy <=200MiB upload" >&2
         legacy_upload_build "$zip" "$engine"
@@ -2508,9 +2517,9 @@ query_upload_session() {
   body_file="$(mktemp)"
   local -a request_args=(
     -X POST
-    "$BUILDA_BASE/api/v1/uploads/build/sessions/$session_id/inspect"
+    "$BUILDA_BASE/api/v1/uploads/${upload_purpose:-build}/sessions/$session_id/inspect"
   )
-  if [ -n "${BUILDA_PUBLISH_OPERATION_ID:-}" ]; then
+  if [ "${upload_purpose:-build}" != "assets" ] && [ -n "${BUILDA_PUBLISH_OPERATION_ID:-}" ]; then
     request_args+=(
       -H "Idempotency-Key: $BUILDA_PUBLISH_OPERATION_ID"
       -H "X-Builda-Studio-Publish-Id: $BUILDA_PUBLISH_OPERATION_ID"
@@ -2537,9 +2546,9 @@ cancel_upload_session() {
   body_file="$(mktemp)"
   local -a request_args=(
     -X POST
-    "$BUILDA_BASE/api/v1/uploads/build/sessions/$session_id/cancel"
+    "$BUILDA_BASE/api/v1/uploads/${upload_purpose:-build}/sessions/$session_id/cancel"
   )
-  if [ -n "${BUILDA_PUBLISH_OPERATION_ID:-}" ]; then
+  if [ "${upload_purpose:-build}" != "assets" ] && [ -n "${BUILDA_PUBLISH_OPERATION_ID:-}" ]; then
     request_args+=(
       -H "Idempotency-Key: ${BUILDA_PUBLISH_OPERATION_ID}"
       -H "X-Builda-Studio-Publish-Id: ${BUILDA_PUBLISH_OPERATION_ID}"
@@ -3194,12 +3203,16 @@ import sys
 import zipfile
 
 zip_path = sys.argv[1]
+if pathlib.Path(zip_path).stat().st_size > 500 * 1024 * 1024:
+    raise SystemExit("Assets zip exceeds 500MiB compressed hard limit")
 audio_allowed = {".mp3", ".ogg", ".wav"}
 res_allowed = {".glb", ".gltf", ".bin", ".ktx2", ".png", ".jpg", ".jpeg", ".webp", ".json", ".bundle", ".hash", ".pck"}
 pck_count = 0
 count = 0
 total = 0
 with zipfile.ZipFile(zip_path) as z:
+    if len(z.infolist()) > 20000:
+        raise SystemExit("Too many asset ZIP entries: max 20000")
     for info in z.infolist():
         name = info.filename
         if info.is_dir():
@@ -3229,10 +3242,12 @@ with zipfile.ZipFile(zip_path) as z:
         total += info.file_size
         if count > 10000:
             raise SystemExit("Too many asset files: max 10000")
-        if total > 320 * 1024 * 1024:
-            raise SystemExit("Assets zip exceeds 320MB uncompressed")
+        if total > 1024 * 1024 * 1024:
+            raise SystemExit("Assets zip exceeds 1024MiB uncompressed hard limit")
 if count == 0:
     raise SystemExit("assets.zip is empty")
+if pathlib.Path(zip_path).stat().st_size > 340 * 1024 * 1024:
+    print("assets-policy=server allowance required above default limits", file=sys.stderr)
 print("assets=ok")
 print(f"assets-files={count}")
 print(f"assets-bytes={total}")
@@ -3250,11 +3265,13 @@ assets_upload() {
   assets_check_zip "$zip" >/dev/null
   local game_id
   game_id="$(project_game_id)"
-  if [ -n "$game_id" ]; then
-    resp="$(authenticated_http_request "assets upload" -X POST "$BUILDA_BASE/api/v1/uploads/assets" -F "file=@$zip" -F "gameId=$game_id")"
-  else
-    resp="$(authenticated_http_request "assets upload" -X POST "$BUILDA_BASE/api/v1/uploads/assets" -F "file=@$zip")"
-  fi
+  local upload_purpose=assets identity expected_size expected_sha idempotency
+  [ -z "${BUILDA_PUBLISH_OPERATION_ID:-}" ] || { echo "Assets upload cannot use a Studio publish operation." >&2; return 1; }
+  identity="$(bundle_identity "$zip" assets)"
+  expected_size="$(printf '%s\n' "$identity" | sed -n '1p')"
+  expected_sha="$(printf '%s\n' "$identity" | sed -n '2p')"
+  idempotency="$(upload_idempotency_key assets "$game_id" "$expected_sha")"
+  resp="$(run_session_upload "$zip" assets "$game_id" "$expected_size" "$expected_sha" "$idempotency" "")" || return $?
   printf '%s\n' "$resp" > "$ROOT/last-assets.json"
   echo "$resp"
   if command -v jq >/dev/null 2>&1; then
@@ -3269,13 +3286,14 @@ assets_upload() {
     echo "Updated $MANIFEST with audio assets fields."
   elif command -v python3 >/dev/null 2>&1; then
     if [ ! -f "$MANIFEST" ]; then "$0" new-manifest >/dev/null; fi
-    python3 - "$MANIFEST" "$resp" <<'PY'
+    python3 - "$MANIFEST" "$ROOT/last-assets.json" <<'PY'
 import json
 import sys
-manifest_path, resp_raw = sys.argv[1:3]
+manifest_path, receipt_path = sys.argv[1:3]
 with open(manifest_path, "r", encoding="utf-8") as f:
     m = json.load(f)
-r = json.loads(resp_raw)
+with open(receipt_path, "r", encoding="utf-8") as f:
+    r = json.load(f)
 m["assetsVersion"] = r.get("assetsVersion", "")
 m["assetsBaseUrl"] = r.get("assetsBaseUrl", "")
 m["assetsManifestUrl"] = r.get("assetsManifestUrl", "")
@@ -3517,6 +3535,72 @@ PYSDK
   rm -f "$tmp"
 }
 
+# Tell a pinned project whether a newer public SDK exists. Hint only: never upgrades, and a network or metadata failure
+# prints sdk-latest=unavailable without failing the check. One retry rides out an occasional stalled CDN response.
+sdk_latest_hint() {
+  local pin="$1" engine channel code tmp verdict latest
+  engine="$(detect_engine_value .)"
+  case "$engine" in h5) channel=web/latest.json;; unity) channel=unity/latest.json;; *) channel=latest.json;; esac
+  tmp="$(mktemp)"
+  code="$(curl -sS --connect-timeout 5 --max-time 10 --retry 1 -o "$tmp" -w '%{http_code}' "$BUILDA_AGENT_BASE/game-sdk/$channel" 2>/dev/null)" || code=000
+  verdict="unavailable"
+  if [ "$code" = 200 ]; then
+    verdict="$(python3 - "$tmp" "$pin" "$VERSION" <<'PYSDK' 2>/dev/null || echo unavailable
+import json,sys,re
+semver=lambda v: tuple(map(int,v.split('.'))) if re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',v or '') else None
+try:
+ m=json.load(open(sys.argv[1])); assert m.get('schemaVersion')==1
+ latest,need=semver(m['version']),semver(m['minimumCLIVersion']); assert latest and need
+except Exception: print('unavailable'); sys.exit()
+pin=semver(sys.argv[2])
+if pin and pin>=latest: print('current')
+elif semver(sys.argv[3]) and semver(sys.argv[3])<need: print('needs-cli '+m['version']+' '+m['minimumCLIVersion'])
+else: print('newer '+m['version'])
+PYSDK
+)"
+  fi
+  rm -f "$tmp"
+  case "$verdict" in
+    current) echo "sdk-latest=current" ;;
+    needs-cli\ *|newer\ *)
+      set -- $verdict "$pin"
+      latest="$2"
+      local changelog="$BUILDA_AGENT_BASE/game-sdk/releases/$latest/CHANGELOG.md"
+      if [ "$1" = needs-cli ]; then
+        echo "sdk-latest=$latest (pinned $pin; needs CLI >= $3: run builda update first; changelog: $changelog)"
+      else
+        echo "sdk-latest=$latest (pinned $pin; changelog: $changelog; upgrade: builda sdk upgrade)"
+      fi
+      sdk_heads_up "$pin" "$latest" "$changelog"
+      ;;
+    *) echo "sdk-latest=unavailable (retry next check)" ;;
+  esac
+}
+
+# List the versions after the pin (up to latest) whose changelog section has a "Heads-up", i.e. may need game code changes.
+sdk_heads_up() {
+  local pin="$1" latest="$2" changelog="$3" tmp code
+  tmp="$(mktemp)"
+  code="$(curl -sS --connect-timeout 5 --max-time 10 --retry 1 -o "$tmp" -w '%{http_code}' "$changelog" 2>/dev/null)" || code=000
+  if [ "$code" = 200 ]; then
+    python3 - "$tmp" "$pin" "$latest" <<'PYSDK' 2>/dev/null || echo "sdk-heads-up=unknown (changelog unreadable; read it before upgrading)"
+import re,sys
+semver=lambda v: tuple(map(int,v.split('.'))) if re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',v or '') else None
+pin,latest=semver(sys.argv[2]),semver(sys.argv[3])
+hits,cur=[],None
+for line in open(sys.argv[1],encoding='utf-8'):
+ h=re.match(r'##\s+([0-9]+\.[0-9]+\.[0-9]+)\b',line)
+ if h: cur=h.group(1) if (pin is None or semver(h.group(1))>pin) and semver(h.group(1))<=latest else None; continue
+ if line.startswith('## '): cur=None; continue
+ if cur and re.match(r'###\s+(Heads-up|升级须知)',line) and cur not in hits: hits.append(cur)
+if hits: print('sdk-heads-up='+','.join(hits)+' (these versions may need game code changes: read their "Heads-up" sections in the changelog before upgrading)')
+PYSDK
+  else
+    echo "sdk-heads-up=unknown (changelog unavailable; read it before upgrading)"
+  fi
+  rm -f "$tmp"
+}
+
 sdk_install_directory_set() {
   local transaction_root="$1"
   shift
@@ -3707,7 +3791,7 @@ PYONLINE
   return 1
 }
 
-# Report how multiplayer deliverables relate to the SDK version lock; installs nothing, no network.
+# Report how multiplayer deliverables relate to the SDK version lock; installs nothing, no network. Newer releases: sdk_latest_hint.
 sdk_online_status() {
   local record="$ONLINE_STATE_DIR/installation.json" pin="" release
   [ -f "$record" ] || return 0
@@ -3720,7 +3804,7 @@ except Exception: print("")' "$record" 2>/dev/null || true)"
     echo "online-status=unrecorded (run: ./$ONLINE_STATE_DIR/bin/builda-online install --manifest-url $BUILDA_AGENT_BASE/online/releases/${pin:-<sdk-version>}/manifest.json)"
   elif [ -n "$pin" ] && [ "$release" = "$pin" ]; then
     echo "online-release=$release"
-    echo "online-status=ok"
+    echo "online-status=matches-pin (local multiplayer release equals the SDK pin; not a latest-version check)"
   else
     echo "online-release=$release"
     echo "online-status=outdated (Builda SDK pin is ${pin:-unknown}; run: ./$ONLINE_STATE_DIR/bin/builda-online upgrade)"
@@ -6071,6 +6155,7 @@ JSON
         ;;
       check)
         sdk_check
+        if [ -f "$SDK_VERSION_FILE" ]; then sdk_latest_hint "$(head -n 1 "$SDK_VERSION_FILE" | tr -d '\r')"; fi
         ;;
       smoke)
         sdk_smoke
@@ -6101,12 +6186,21 @@ JSON
       upload)
         assets_upload "${1:-}"
         ;;
+      upload-list|upload-status|upload-cancel)
+        upload_purpose=assets
+        need_token
+        case "$sub" in
+          upload-list) list_upload_sessions "$@" ;;
+          upload-status) query_upload_session "${1:-}" ;;
+          upload-cancel) cancel_upload_session "${1:-}" ;;
+        esac
+        ;;
       ""|-h|--help|help)
-        echo "Usage: builda assets check <zip> | upload <zip>"
+        echo "Usage: builda assets check <zip> | upload <zip> | upload-list [--all] [--json] | upload-status <session> | upload-cancel <session>"
         ;;
       *)
         echo "Unknown assets command: $sub" >&2
-        echo "Usage: builda assets check <zip> | upload <zip>" >&2
+        echo "Usage: builda assets check <zip> | upload <zip> | upload-list [--all] [--json] | upload-status <session> | upload-cancel <session>" >&2
         exit 1
         ;;
     esac
