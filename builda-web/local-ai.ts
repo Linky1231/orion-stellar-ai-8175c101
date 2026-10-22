@@ -3,9 +3,7 @@ import { Wllama } from "@wllama/wllama";
 import wasmUrl from "@wllama/wllama/esm/wasm/wllama.wasm?url";
 import compatWasmUrl from "@wllama/wllama-compat/wasm/wllama.wasm?url";
 import compatWorker from "@wllama/wllama-compat/wasm/wllama.js?raw";
-
-const SYSTEM =
-  "Eres Orión Estellar, una asistente de IA amable y breve. Respondes siempre en español, con frases claras y cortas.";
+import { LOCAL_MODEL } from "./model-config";
 
 let ready: Promise<Wllama> | null = null;
 
@@ -58,9 +56,12 @@ export function localChatResponse(body: any, signal?: AbortSignal | null): Respo
       try {
         const w = await load();
         await w.createChatCompletion({
-          messages: [{ role: "system", content: SYSTEM }, ...convo],
-          max_tokens: 400,
-          temperature: 0.7,
+          messages: [{ role: "system", content: LOCAL_MODEL.system }, ...convo],
+          max_tokens: LOCAL_MODEL.maxTokens,
+          temperature: LOCAL_MODEL.temperature,
+          top_k: LOCAL_MODEL.topK,
+          top_p: LOCAL_MODEL.topP,
+          min_p: LOCAL_MODEL.minP,
           stream: true,
           abortSignal: signal ?? undefined,
           onData: (c: any) => {

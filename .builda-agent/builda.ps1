@@ -341,7 +341,7 @@ $IssueActorPath = Join-Path $AuthDir "issue-actor-id"
 $Manifest = if ($env:BUILDA_MANIFEST) { $env:BUILDA_MANIFEST } else { "builda.publish.json" }
 $ProjectFile = if ($env:BUILDA_PROJECT_FILE) { $env:BUILDA_PROJECT_FILE } else { Join-Path $ProjectStateDir "game.json" }
 $LegacyProjectFile = if ($env:BUILDA_LEGACY_PROJECT_FILE) { $env:BUILDA_LEGACY_PROJECT_FILE } else { "builda.game.json" }
-$Version = "0.4.102"
+$Version = "0.4.105"
 $RuntimeVersionFile = Join-Path $Root "VERSION"
 $SdkVersionFile = Join-Path $ProjectStateDir "sdk-version"
 $DefaultBase = "https://builda-godot-api.poni.fun"
@@ -1743,6 +1743,7 @@ function Check-SelfUpdate {
     try { Show-SdkGuidance } catch { Write-Host "sdk-guidance=missing-or-incomplete (restore pinned version before SDK tasks)" }
     Write-Host "sdk-sync=independent (SDK version pinned per project; upgrade explicitly: builda sdk upgrade)"
     Write-OnlineStatus
+    Write-SdkLatestHint -Pin $SdkVersion
   } elseif ((Test-Path "addons/builda") -or (Test-Path (Join-Path $ProjectStateDir "sdk/web"))) {
     Write-Host "sdk-version=unknown (missing $SdkVersionFile; run: builda sdk install)"
   } else {
@@ -2959,12 +2960,15 @@ function Invoke-DevServer {
 function Test-AssetsZip {
   param([string]$Zip)
   if (!$Zip -or !(Test-Path $Zip)) { throw "assets.zip file required" }
+  if ((Get-Item $Zip).Length -gt 500MB) { throw "Assets zip exceeds 500MiB compressed hard limit" }
+
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   $Archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $Zip))
   try {
     $Count = 0
     $PckCount = 0
     [int64]$Total = 0
+    if ($Archive.Entries.Count -gt 20000) { throw "Too many asset ZIP entries: max 20000" }
     foreach ($Entry in $Archive.Entries) {
       $Name = $Entry.FullName.TrimStart("./").TrimEnd("/")
       if (!$Name) { continue }
@@ -2985,9 +2989,10 @@ function Test-AssetsZip {
       $Count += 1
       $Total += $Entry.Length
       if ($Count -gt 10000) { throw "Too many asset files: max 10000" }
-      if ($Total -gt 320MB) { throw "Assets zip exceeds 320MB uncompressed" }
+      if ($Total -gt 1024MB) { throw "Assets zip exceeds 1024MiB uncompressed hard limit" }
     }
     if ($Count -eq 0) { throw "assets.zip is empty" }
+    if ((Get-Item $Zip).Length -gt 340MB) { [Console]::Error.WriteLine("assets-policy=server allowance required above default limits") }
     Write-Host "assets=ok"
     Write-Host "assets-files=$Count"
     Write-Host "assets-bytes=$Total"
@@ -3005,12 +3010,7 @@ function Upload-AssetsZip {
   Need-Token
   if (!$Zip -or !(Test-Path $Zip)) { throw "assets.zip file required" }
   Test-AssetsZip $Zip | Out-Null
-  if (!(Get-Command curl.exe -ErrorAction SilentlyContinue)) { throw "curl.exe is required for assets upload on Windows." }
-  $ZipPath = Resolve-Path $Zip
-  $GameId = Get-ProjectGameId
-  $Arguments = @("-X", "POST", "$Base/api/v1/uploads/assets", "-F", "file=@$ZipPath")
-  if ($GameId) { $Arguments += @("-F", "gameId=$GameId") }
-  $Raw = Invoke-BuildaCurlUploadWithAuthRetry -Label "assets upload" -CurlArguments $Arguments
+  $Raw = Invoke-ResumableBuildUpload $Zip "assets"
   $Resp = $Raw | ConvertFrom-Json
   Write-Utf8TextNoBom (Join-Path $Root "last-assets.json") ($Resp | ConvertTo-Json -Depth 8)
   $Resp | ConvertTo-Json -Depth 8
@@ -3051,6 +3051,46 @@ function Find-SdkRelease {
     if (!($M.schemaVersion -is [int] -or $M.schemaVersion -is [long]) -or $M.schemaVersion -ne 1 -or [string]$M.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or [string]$M.minimumCLIVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { Write-Host "sdk-discovery=invalid-metadata"; return }
     if ([version]$Version -lt [version]$M.minimumCLIVersion) { Write-Host "sdk-discovery=incompatible (update CLI)" } else { Write-Host "sdk-discovery=available version=$($M.version) (run: builda sdk install)" }
   } catch { Write-Host "sdk-discovery=unavailable-or-not-published (retry next check)" }
+}
+
+# Tell a pinned project whether a newer public SDK exists. Hint only: never upgrades, and a network or metadata failure
+# prints sdk-latest=unavailable without failing the check.
+function Write-SdkLatestHint {
+  param([string]$Pin)
+  $Channel = switch (Get-EngineValue ".") { "h5" { "web/latest.json" }; "unity" { "unity/latest.json" }; default { "latest.json" } }
+  try {
+    $M = Get-BuildaRemoteJson -Uri "$AgentBase/game-sdk/$Channel"
+    if (!($M.schemaVersion -is [int] -or $M.schemaVersion -is [long]) -or $M.schemaVersion -ne 1 -or [string]$M.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or [string]$M.minimumCLIVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw "invalid SDK metadata" }
+  } catch { Write-Host "sdk-latest=unavailable (retry next check)"; return }
+  $Latest = [string]$M.version
+  if ($Pin -match '^[0-9]+\.[0-9]+\.[0-9]+$' -and [version]$Pin -ge [version]$Latest) { Write-Host "sdk-latest=current"; return }
+  $Changelog = "$AgentBase/game-sdk/releases/$Latest/CHANGELOG.md"
+  if ([version]$Version -lt [version]$M.minimumCLIVersion) {
+    Write-Host "sdk-latest=$Latest (pinned $Pin; needs CLI >= $($M.minimumCLIVersion): run builda update first; changelog: $Changelog)"
+  } else {
+    Write-Host "sdk-latest=$Latest (pinned $Pin; changelog: $Changelog; upgrade: builda sdk upgrade)"
+  }
+  Write-SdkHeadsUp -Pin $Pin -Latest $Latest -Changelog $Changelog
+}
+
+# List the versions after the pin (up to latest) whose changelog section has a "Heads-up", i.e. may need game code changes.
+function Write-SdkHeadsUp {
+  param([string]$Pin, [string]$Latest, [string]$Changelog)
+  try { $Text = Get-BuildaRemoteUtf8Text -Uri $Changelog } catch { Write-Host "sdk-heads-up=unknown (changelog unavailable; read it before upgrading)"; return }
+  $PinVersion = if ($Pin -match '^[0-9]+\.[0-9]+\.[0-9]+$') { [version]$Pin } else { $null }
+  $Hits = New-Object System.Collections.Generic.List[string]
+  $Current = $null
+  foreach ($Line in ($Text -split "`r?`n")) {
+    if ($Line -match '^##\s+([0-9]+\.[0-9]+\.[0-9]+)\b') {
+      $Section = [version]$Matches[1]
+      $Current = if ((!$PinVersion -or $Section -gt $PinVersion) -and $Section -le [version]$Latest) { $Matches[1] } else { $null }
+    } elseif ($Line.StartsWith('## ')) {
+      $Current = $null
+    } elseif ($Current -and $Line -match ('^###\s+(Heads-up|' + [char]0x5347 + [char]0x7EA7 + [char]0x987B + [char]0x77E5 + ')') -and !$Hits.Contains($Current)) {
+      $Hits.Add($Current)
+    }
+  }
+  if ($Hits.Count -gt 0) { Write-Host "sdk-heads-up=$($Hits -join ',') (these versions may need game code changes: read their `"Heads-up`" sections in the changelog before upgrading)" }
 }
 
 function Test-SdkArchiveGuidance {
@@ -3346,7 +3386,7 @@ function Install-OnlineDelivery {
   }
 }
 
-# Reports how the multiplayer deliverables relate to the SDK version lock; does not install or go online.
+# Reports how the multiplayer deliverables relate to the SDK version lock; does not install or go online. Newer releases: Write-SdkLatestHint.
 function Write-OnlineStatus {
   $Record = Join-Path $OnlineStateDir "installation.json"
   if (!(Test-Path $Record)) { return }
@@ -3363,7 +3403,7 @@ function Write-OnlineStatus {
     Write-Host "online-status=unrecorded (run: .\$OnlineStateDir\bin\builda-online.cmd install --manifest-url $AgentBase/online/releases/$PinLabel/manifest.json)"
   } elseif ($Pin -and $ReleaseId -eq $Pin) {
     Write-Host "online-release=$ReleaseId"
-    Write-Host "online-status=ok"
+    Write-Host "online-status=matches-pin (local multiplayer release equals the SDK pin; not a latest-version check)"
   } else {
     $PinShown = if ($Pin) { $Pin } else { "unknown" }
     Write-Host "online-release=$ReleaseId"
@@ -4539,14 +4579,15 @@ function Format-UploadSessionDate {
 }
 
 function Format-UploadRecovery {
-  param([string]$Body, [switch]$Blocked, [string]$GameId)
+  param([string]$Body, [switch]$Blocked, [string]$GameId, [string]$Purpose = "build")
+  $ScopePrefix = if ($Purpose -eq "assets") { "assets " } else { "" }
   try { $Data = $Body | ConvertFrom-Json } catch { return }
   if ($Blocked -and $Data.errorCode -ne "upload_session_quota_exceeded" -and $Data.msg -ne "upload session quota exceeded") { return }
   if ($Blocked) {
     switch ($Data.quota.reason) {
       "game_active_session" { "This game already has an active upload (limit: 1)." }
       "owner_active_limit" { "Your account has reached the active upload limit (3 across all games)." }
-      default { "Check active uploads with: .\.builda-agent\builda.cmd upload-list --all (requires a server with recovery support)." }
+      default { "Check active uploads with: .\.builda-agent\builda.cmd $($ScopePrefix)upload-list --all (requires a server with recovery support)." }
     }
     "Retry the original unchanged ZIP to resume. Rebuilding a ZIP may create a different upload."
     if ($Data.requestId) { "Request ID: $($Data.requestId)" }
@@ -4554,27 +4595,28 @@ function Format-UploadRecovery {
   $Sessions = if ($Blocked) { @($Data.quota.sessions) } else { @($Data.sessions) }
   if (!$Blocked -and !($Sessions | Where-Object { $_ })) {
     "No active uploads in this scope."
-    if ($GameId) { "Run upload-list --all to see uploads for your other games." }
+    if ($GameId) { "Run $($ScopePrefix)upload-list --all to see uploads for your other games." }
   }
   foreach ($Session in $Sessions) {
     if (!$Session -or $Session.id -notmatch "^[a-zA-Z0-9_-]+$") { continue }
+    $CommandPrefix = if ($Session.purpose -eq "assets") { "assets " } else { "" }
     $Game = if ($Session.gameId) { $Session.gameId } else { "(new game)" }
     "Session: $($Session.id)  game=$Game  status=$($Session.status)  size=$($Session.expectedSize) bytes"
     "  Created: $(Format-UploadSessionDate $Session.createdAt)  Last activity: $(Format-UploadSessionDate $Session.lastActivityAt)  Expires: $(Format-UploadSessionDate $Session.expiresAt)"
-    "  Inspect progress: .\.builda-agent\builda.cmd upload-status $($Session.id)"
-    if ($Session.canCancel -eq $true) { "  To abandon this upload: .\.builda-agent\builda.cmd upload-cancel $($Session.id)" }
+    "  Inspect progress: .\.builda-agent\builda.cmd $($CommandPrefix)upload-status $($Session.id)"
+    if ($Session.canCancel -eq $true) { "  To abandon this upload: .\.builda-agent\builda.cmd $($CommandPrefix)upload-cancel $($Session.id)" }
     else { "  Cancellation is currently unavailable; inspect status before retrying." }
   }
-  if ($Sessions | Where-Object { $_ }) { "No uploads were canceled. After explicitly canceling an abandoned upload, retry publish." }
+  if ($Sessions | Where-Object { $_ }) { "No uploads were canceled. After explicitly canceling an abandoned upload, retry the original upload command." }
 }
 
 function Get-ActiveUploadSessions {
-  param([string[]]$Options)
+  param([string[]]$Options, [string]$Purpose = "build")
   foreach ($Option in $Options) {
     if ($Option -notin @("--all", "--json")) { throw "Usage: builda upload-list [--all] [--json]" }
   }
   $GameId = ""
-  $Uri = "$Base/api/v1/uploads/build/sessions"
+  $Uri = "$Base/api/v1/uploads/$Purpose/sessions"
   if ($Options -notcontains "--all") {
     $GameId = Get-ProjectGameId
     if ($GameId) { $Uri += "?gameId=$([Uri]::EscapeDataString($GameId))" }
@@ -4582,11 +4624,13 @@ function Get-ActiveUploadSessions {
   $Response = Invoke-UploadSessionRequest -Method "GET" -Uri $Uri -Headers @{}
   if ($Response.Status -ne 200) { throw "list upload sessions failed (server recovery support required): $(Format-BuildaHttpFailure $Response)" }
   if ($Options -contains "--json") { $Response.Body }
-  else { Format-UploadRecovery -Body $Response.Body -GameId $GameId }
+  else { Format-UploadRecovery -Body $Response.Body -GameId $GameId -Purpose $Purpose }
 }
 
 function Invoke-ResumableBuildUpload {
   param([string]$Zip, [string]$Engine)
+  $Purpose = if ($Engine -eq "assets") { "assets" } else { "build" }
+  if ($Purpose -eq "assets" -and $env:BUILDA_PUBLISH_OPERATION_ID) { throw "Assets upload cannot use a Studio publish operation." }
   $Identity = Get-BundleIdentity $Zip $Engine
   $GameId = Get-ProjectGameId
   $Idempotency = if ($env:BUILDA_PUBLISH_OPERATION_ID) {
@@ -4600,9 +4644,11 @@ function Invoke-ResumableBuildUpload {
     expectedSha256 = $Identity.Sha256; idempotencyKey = $Idempotency
   }
   if ($env:BUILDA_PUBLISH_OPERATION_ID) { $RequestPayload["studioPayloadHash"] = $Identity.StudioPayloadHash }
+  if ($Purpose -eq "assets") { $RequestPayload.Remove("engine") }
   $RequestBody = $RequestPayload | ConvertTo-Json -Compress
-  $Response = Invoke-UploadSessionRequest -Method Post -Uri "$Base/api/v1/uploads/build/sessions" -Headers $Headers -Body $RequestBody
+  $Response = Invoke-UploadSessionRequest -Method Post -Uri "$Base/api/v1/uploads/$Purpose/sessions" -Headers $Headers -Body $RequestBody
   if ($Response.Status -in @(404, 405)) {
+    if ($Purpose -eq "assets") { throw "Server does not support assets upload sessions; update the backend before retrying." }
     if ($Identity.Size -le 209715200) {
       Write-Error "upload-session=unsupported; falling back to the legacy <=200MiB upload" -ErrorAction Continue
       $LegacyResult = Invoke-LegacyBuildUpload $Identity.Path $Engine
@@ -4612,7 +4658,7 @@ function Invoke-ResumableBuildUpload {
   }
   if ($Response.Status -notin @(200, 201)) {
     if ($Response.Status -eq 409) {
-      foreach ($Line in @(Format-UploadRecovery -Body $Response.Body -Blocked)) { [Console]::Error.WriteLine($Line) }
+      foreach ($Line in @(Format-UploadRecovery -Body $Response.Body -Blocked -Purpose $Purpose)) { [Console]::Error.WriteLine($Line) }
     }
     throw "create upload session failed: $(Format-BuildaHttpFailure $Response)"
   }
@@ -4631,10 +4677,10 @@ function Invoke-ResumableBuildUpload {
 }
 
 function Get-UploadSessionStatus {
-  param([string]$SessionId)
+  param([string]$SessionId, [string]$Purpose = "build")
   if (!$SessionId) { throw "Usage: builda upload-status <session>" }
-  $Idempotency = if ($env:BUILDA_PUBLISH_OPERATION_ID) { $env:BUILDA_PUBLISH_OPERATION_ID } else { "inspect-$SessionId" }
-  $Response = Invoke-UploadSessionRequest -Method Post -Uri "$Base/api/v1/uploads/build/sessions/$SessionId/inspect" -Headers (Get-StudioUploadHeaders $Idempotency)
+  $Idempotency = if ($Purpose -ne "assets" -and $env:BUILDA_PUBLISH_OPERATION_ID) { $env:BUILDA_PUBLISH_OPERATION_ID } else { "inspect-$SessionId" }
+  $Response = Invoke-UploadSessionRequest -Method Post -Uri "$Base/api/v1/uploads/$Purpose/sessions/$SessionId/inspect" -Headers $(if ($Purpose -eq "assets") { @{} } else { Get-StudioUploadHeaders $Idempotency })
   if ($Response.Status -ne 200) { throw "query upload session failed: HTTP $($Response.Status): $($Response.Body)" }
   $Session = $Response.Body | ConvertFrom-Json
   [int64]$UploadedBytes = 0
@@ -4652,11 +4698,11 @@ function Get-UploadSessionStatus {
 }
 
 function Cancel-UploadSession {
-  param([string]$SessionId)
+  param([string]$SessionId, [string]$Purpose = "build")
   if (!$SessionId) { throw "Usage: builda upload-cancel <session>" }
-  $Idempotency = if ($env:BUILDA_PUBLISH_OPERATION_ID) { $env:BUILDA_PUBLISH_OPERATION_ID } else { "cancel-$SessionId" }
-  $Headers = Get-StudioUploadHeaders $Idempotency
-  $Response = Invoke-UploadSessionRequest -Method Post -Uri "$Base/api/v1/uploads/build/sessions/$SessionId/cancel" -Headers $Headers
+  $Idempotency = if ($Purpose -ne "assets" -and $env:BUILDA_PUBLISH_OPERATION_ID) { $env:BUILDA_PUBLISH_OPERATION_ID } else { "cancel-$SessionId" }
+  $Headers = if ($Purpose -eq "assets") { @{} } else { Get-StudioUploadHeaders $Idempotency }
+  $Response = Invoke-UploadSessionRequest -Method Post -Uri "$Base/api/v1/uploads/$Purpose/sessions/$SessionId/cancel" -Headers $Headers
   if ($Response.Status -ne 204) { throw "cancel upload session failed: HTTP $($Response.Status): $($Response.Body)" }
 }
 
@@ -6147,12 +6193,15 @@ switch ($Cmd) {
         if ($Rest.Count -lt 2) { throw "Usage: builda assets upload <zip>" }
         Upload-AssetsZip $Rest[1]
       }
+      "upload-list" { Need-Token; Get-ActiveUploadSessions -Options @($Rest | Select-Object -Skip 1) -Purpose "assets" }
+      "upload-status" { Need-Token; if ($Rest.Count -lt 2) { throw "session ID required" }; Get-UploadSessionStatus $Rest[1] "assets" }
+      "upload-cancel" { Need-Token; if ($Rest.Count -lt 2) { throw "session ID required" }; Cancel-UploadSession $Rest[1] "assets" }
       { $_ -in @("", "-h", "--help", "help") } {
-        Write-Host "Usage: builda assets check <zip> | upload <zip>"
+        Write-Host "Usage: builda assets check <zip> | upload <zip> | upload-list [--all] [--json] | upload-status <session> | upload-cancel <session>"
       }
       default {
         Write-Error "Unknown assets command: $Sub"
-        Write-Host "Usage: builda assets check <zip> | upload <zip>"
+        Write-Host "Usage: builda assets check <zip> | upload <zip> | upload-list [--all] [--json] | upload-status <session> | upload-cancel <session>"
         exit 1
       }
     }
@@ -6163,7 +6212,10 @@ switch ($Cmd) {
       "init" { Initialize-SdkProject }
       "install" { Set-SdkInstallOptions -Arguments @($Rest | Select-Object -Skip 1) -AllowVersion $true; Install-Sdk }
       "upgrade" { $script:SdkUpgrade = $true; Set-SdkInstallOptions -Arguments @($Rest | Select-Object -Skip 1) -AllowVersion $false; Install-Sdk }
-      "check" { Test-Sdk }
+      "check" {
+        Test-Sdk
+        if (Test-Path $SdkVersionFile) { Write-SdkLatestHint -Pin (Read-Utf8Lines $SdkVersionFile | Select-Object -First 1).Trim() }
+      }
       "smoke" { Invoke-SdkSmoke }
       { $_ -in @("", "-h", "--help", "help") } {
         Write-Host "Usage: builda sdk init | install [version] [--with-online] | upgrade [--with-online] | check | smoke"

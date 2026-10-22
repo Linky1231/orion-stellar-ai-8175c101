@@ -25,4 +25,5 @@ $p = Join-Path $env:TEMP "builda-install.ps1"; iwr https://ai.builda.game/agent/
 - Builda saved tables use stable orion_local_<table>_v1 keys, validate SDK results, and reject oversized writes without truncation to respect the platform save contract.
 - AI transport remains separate from persistence: the web keeps its existing AI endpoints and Builda keeps its bundled local model.
 - Builda packaging must include the validated GGUF model and local Wllama compatibility WASM/worker assets; Safari cannot depend on Wllama's default CDN fallback inside the sandbox.
+- Builda model selection and inference settings live in its browser-safe model configuration; its CDN asset pointer is consumed only during packaging so inference remains offline.
 - Public editorial guides use SSR leaf routes with self-referencing metadata and source links; web-only navigation is passed into ChatApp through its optional header action so the standalone Builda entry remains independent of the router.
