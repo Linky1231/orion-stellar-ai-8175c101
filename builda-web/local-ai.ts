@@ -59,6 +59,9 @@ export function localChatResponse(body: any, signal?: AbortSignal | null): Respo
           messages: [{ role: "system", content: LOCAL_MODEL.system }, ...convo],
           max_tokens: LOCAL_MODEL.maxTokens,
           temperature: LOCAL_MODEL.temperature,
+          top_k: LOCAL_MODEL.topK,
+          top_p: LOCAL_MODEL.topP,
+          min_p: LOCAL_MODEL.minP,
           stream: true,
           abortSignal: signal ?? undefined,
           onData: (c: any) => {
