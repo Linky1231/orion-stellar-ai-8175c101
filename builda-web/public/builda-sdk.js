@@ -1,1 +1,0 @@
-../../.builda-agent/sdk/web/builda-sdk.js
